@@ -2,7 +2,9 @@
 
 from fastapi import FastAPI
 
-app = FastAPI(title="Lead Intelligence Engine", version="0.1.0")
+from core.lifespan import lifespan
+
+app = FastAPI(title="Lead Intelligence Engine", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
