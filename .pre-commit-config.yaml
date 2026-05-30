@@ -15,8 +15,13 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic, types-redis]
+        name: mypy
+        # Run in the project's uv environment so mypy sees real dependency types
+        # (pydantic-settings, sqlalchemy, etc.) and matches CI's `uv run mypy .`.
+        entry: uv run mypy .
+        language: system
+        types: [python]
+        pass_filenames: false
