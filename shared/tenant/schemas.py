@@ -5,20 +5,20 @@ tests import them from here.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 
-class BusinessType(str, Enum):
+class BusinessType(StrEnum):
     """Whether the tenant sells to businesses or consumers."""
 
     B2B = "B2B"
     B2C = "B2C"
 
 
-class TenantStatus(str, Enum):
+class TenantStatus(StrEnum):
     """The tenant lifecycle. 'Onboarding' is simply CREATED."""
 
     CREATED = "CREATED"
