@@ -4,12 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 — building the foundation.** `core/` infrastructure is being built
-test-first. Done and tested: `core/config.py`, `core/logging.py`,
-`core/lifespan.py` (wired into `main.py`), `core/exceptions.py`, `core/db.py`.
-Still empty stubs: `core/cache.py`, `core/queue.py` (deferred by YAGNI — build
-each alongside its first real consumer), and all of `clients/`, `auth/`,
-`shared/`, `modules/`. When adding the first real code to a module, you are
+**Phase 0 — building the foundation.** Built test-first and merged to `main`:
+all `core/` infrastructure (`config.py`, `logging.py`, `lifespan.py` wired into
+`main.py`, `exceptions.py`, `db.py`) and the first cross-cutting domain module,
+`shared/tenant` (the `Tenant` entity + status lifecycle: public `schemas.py` +
+`service.py`, internal `models.py`). Alembic is now wired up (`migrations/env.py`
+runs sync via psycopg2 against `core.db.Base.metadata`) with the first migration
+creating the `tenants` table, and the integration-test harness
+(`tests/integration/conftest.py`) is in place. Still empty stubs: `core/cache.py`,
+`core/queue.py` (deferred by YAGNI — build each alongside its first real
+consumer), `clients/`, `auth/`, the other `shared/` submodules (`events`,
+`tenant_config`, `prompt_registry`, `audit`), and all of `modules/`. Next up is
+`shared/events`. When adding the first real code to a module, you are
 establishing its public surface — follow the boundary rules below from the start.
 
 ## What this is
