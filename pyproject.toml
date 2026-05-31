@@ -8,7 +8,7 @@ readme = "README.md"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
-    "pydantic>=2.9",
+    "pydantic[email]>=2.9",
     "pydantic-settings>=2.6",
     "sqlalchemy>=2.0",
     "alembic>=1.13",
@@ -39,6 +39,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "C4"]
@@ -47,12 +48,14 @@ ignore = ["E501"]
 [tool.black]
 line-length = 100
 target-version = ["py313"]
+extend-exclude = "migrations/versions"
 
 [tool.mypy]
 python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 disallow_untyped_decorators = false
+exclude = ["migrations/versions/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
