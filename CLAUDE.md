@@ -11,12 +11,18 @@ all `core/` infrastructure (`config.py`, `logging.py`, `lifespan.py` wired into
 `service.py`, internal `models.py`). Alembic is now wired up (`migrations/env.py`
 runs sync via psycopg2 against `core.db.Base.metadata`) with the first migration
 creating the `tenants` table, and the integration-test harness
-(`tests/integration/conftest.py`) is in place. Still empty stubs: `core/cache.py`,
+(`tests/integration/conftest.py`) is in place. `shared/events` is also built
+(contracts-only): `schemas.py` defines the frozen `Event` envelope, the
+`LeadSource`/`LeadBucket` enums, and four events (`TenantActivated`,
+`LeadReceived`, `LeadEnriched`, `LeadScored`) — pure pydantic, no
+publish/subscribe/bus yet (delivery lands with its first consumer,
+`orchestration`, per ADR 0001). Still empty stubs: `core/cache.py`,
 `core/queue.py` (deferred by YAGNI — build each alongside its first real
-consumer), `clients/`, `auth/`, the other `shared/` submodules (`events`,
-`tenant_config`, `prompt_registry`, `audit`), and all of `modules/`. Next up is
-`shared/events`. When adding the first real code to a module, you are
-establishing its public surface — follow the boundary rules below from the start.
+consumer), `clients/`, `auth/`, the other `shared/` submodules
+(`tenant_config`, `prompt_registry`, `audit`), and all of `modules/`. Next up is
+`auth/` (Google OAuth, `platform_admin`/`tenant` roles). When adding the first
+real code to a module, you are establishing its public surface — follow the
+boundary rules below from the start.
 
 ## What this is
 
