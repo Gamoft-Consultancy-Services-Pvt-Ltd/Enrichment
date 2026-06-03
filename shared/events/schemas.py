@@ -64,3 +64,12 @@ class LeadEnriched(Event):
 
     event_type: Literal["LeadEnriched"] = "LeadEnriched"
     lead_id: UUID
+
+
+class LeadScored(Event):
+    """scoring produced a final composite score and bucket for a lead."""
+
+    event_type: Literal["LeadScored"] = "LeadScored"
+    lead_id: UUID
+    score: float = Field(ge=0, le=100)
+    bucket: LeadBucket

@@ -11,6 +11,7 @@ from shared.events.schemas import (
     LeadBucket,
     LeadEnriched,
     LeadReceived,
+    LeadScored,
     LeadSource,
     TenantActivated,
 )
@@ -104,3 +105,42 @@ def test_lead_enriched_carries_lead_id() -> None:
 def test_lead_enriched_requires_lead_id() -> None:
     with pytest.raises(ValidationError):
         LeadEnriched.model_validate({"tenant_id": str(uuid4())})
+
+
+def test_lead_scored_carries_score_and_bucket() -> None:
+    tenant_id, lead_id = uuid4(), uuid4()
+    evt = LeadScored(tenant_id=tenant_id, lead_id=lead_id, score=82.5, bucket=LeadBucket.HOT)
+    assert evt.event_type == "LeadScored"
+    assert evt.lead_id == lead_id
+    assert evt.score == 82.5
+    assert evt.bucket is LeadBucket.HOT
+
+
+def test_lead_scored_accepts_range_boundaries() -> None:
+    LeadScored(tenant_id=uuid4(), lead_id=uuid4(), score=0.0, bucket=LeadBucket.COLD)
+    LeadScored(tenant_id=uuid4(), lead_id=uuid4(), score=100.0, bucket=LeadBucket.HOT)
+
+
+@pytest.mark.parametrize("bad_score", [-1.0, 150.0])
+def test_lead_scored_rejects_out_of_range_score(bad_score: float) -> None:
+    with pytest.raises(ValidationError):
+        LeadScored.model_validate(
+            {
+                "tenant_id": str(uuid4()),
+                "lead_id": str(uuid4()),
+                "score": bad_score,
+                "bucket": "HOT",
+            }
+        )
+
+
+def test_lead_scored_rejects_invalid_bucket() -> None:
+    with pytest.raises(ValidationError):
+        LeadScored.model_validate(
+            {
+                "tenant_id": str(uuid4()),
+                "lead_id": str(uuid4()),
+                "score": 50.0,
+                "bucket": "LUKEWARM",
+            }
+        )
