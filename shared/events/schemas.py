@@ -49,3 +49,11 @@ class TenantActivated(Event):
     """A tenant transitioned to ACTIVE; held leads may now drain (ADR 0001)."""
 
     event_type: Literal["TenantActivated"] = "TenantActivated"
+
+
+class LeadReceived(Event):
+    """lead_ingestion accepted a genuine lead and persisted it; not yet scored."""
+
+    event_type: Literal["LeadReceived"] = "LeadReceived"
+    lead_id: UUID
+    source: LeadSource
