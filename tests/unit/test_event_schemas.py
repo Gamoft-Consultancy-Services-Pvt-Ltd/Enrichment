@@ -6,7 +6,13 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from shared.events.schemas import Event, LeadBucket, LeadSource, TenantActivated
+from shared.events.schemas import (
+    Event,
+    LeadBucket,
+    LeadReceived,
+    LeadSource,
+    TenantActivated,
+)
 
 
 class _Sample(Event):
@@ -65,3 +71,23 @@ def test_tenant_activated_is_frozen() -> None:
     evt = TenantActivated(tenant_id=uuid4())
     with pytest.raises(ValidationError):
         evt.tenant_id = uuid4()
+
+
+def test_lead_received_carries_lead_id_and_source() -> None:
+    tenant_id, lead_id = uuid4(), uuid4()
+    evt = LeadReceived(tenant_id=tenant_id, lead_id=lead_id, source=LeadSource.EMAIL)
+    assert evt.event_type == "LeadReceived"
+    assert evt.lead_id == lead_id
+    assert evt.source is LeadSource.EMAIL
+
+
+def test_lead_received_requires_lead_id_and_source() -> None:
+    with pytest.raises(ValidationError):
+        LeadReceived.model_validate({"tenant_id": str(uuid4())})
+
+
+def test_lead_received_rejects_invalid_source() -> None:
+    with pytest.raises(ValidationError):
+        LeadReceived.model_validate(
+            {"tenant_id": str(uuid4()), "lead_id": str(uuid4()), "source": "CARRIER_PIGEON"}
+        )
