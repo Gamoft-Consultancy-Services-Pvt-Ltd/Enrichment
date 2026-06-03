@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from shared.events.schemas import Event
+from shared.events.schemas import Event, LeadBucket, LeadSource
 
 
 class _Sample(Event):
@@ -39,3 +39,16 @@ def test_event_is_frozen() -> None:
     evt = _Sample(tenant_id=uuid4())
     with pytest.raises(ValidationError):
         evt.tenant_id = uuid4()
+
+
+def test_lead_source_membership_is_exact() -> None:
+    assert {m.value for m in LeadSource} == {
+        "GOOGLE_SHEETS",
+        "EMAIL",
+        "WHATSAPP",
+        "INSTAGRAM",
+    }
+
+
+def test_lead_bucket_membership_is_exact() -> None:
+    assert {m.value for m in LeadBucket} == {"HOT", "WARM", "COLD"}

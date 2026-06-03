@@ -7,9 +7,27 @@ first consumer (see ADR 0001). Other code imports these types directly, e.g.
 """
 
 from datetime import UTC, datetime
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class LeadSource(StrEnum):
+    """The four sources lead_ingestion accepts leads from."""
+
+    GOOGLE_SHEETS = "GOOGLE_SHEETS"
+    EMAIL = "EMAIL"
+    WHATSAPP = "WHATSAPP"
+    INSTAGRAM = "INSTAGRAM"
+
+
+class LeadBucket(StrEnum):
+    """The scoring outcome bucket for a lead."""
+
+    HOT = "HOT"
+    WARM = "WARM"
+    COLD = "COLD"
 
 
 class Event(BaseModel):
