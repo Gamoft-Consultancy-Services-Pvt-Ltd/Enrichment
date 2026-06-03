@@ -64,7 +64,7 @@ Use the `Makefile` targets (each wraps a `uv run …` command):
 |---|---|
 | `make install` | `uv sync` — create `.venv/`, install deps |
 | `make lint` | `ruff check .` |
-| `make format` | `black .` then `ruff check --fix .` |
+| `make format` | `ruff format .` then `ruff check --fix .` |
 | `make typecheck` | `mypy .` (strict mode) |
 | `make test` | full pytest suite |
 | `make test-unit` / `make test-integration` / `make test-e2e` | one tier only |
@@ -154,7 +154,7 @@ queue) · Anthropic Sonnet for LLM · structlog · pytest.
   reusable helpers in `tests/helpers/`.
 - `mypy` runs in **strict** mode over the **whole repo** (`mypy .`) — that
   includes `tests/`, so test code must also type-check (this catches issues a
-  `mypy core/` run misses). `ruff`/`black` line length is 100 (`E501` ignored).
+  `mypy core/` run misses). `ruff` line length is 100 (`E501` ignored).
   Pre-commit runs lint/format/typecheck — install once with
   `uv run pre-commit install`.
 - **Unit tests must not need a DB or network.** SQLAlchemy connects lazily, so
