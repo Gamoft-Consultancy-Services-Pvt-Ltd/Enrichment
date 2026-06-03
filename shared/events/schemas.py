@@ -57,3 +57,10 @@ class LeadReceived(Event):
     event_type: Literal["LeadReceived"] = "LeadReceived"
     lead_id: UUID
     source: LeadSource
+
+
+class LeadEnriched(Event):
+    """enrichment finished gathering external data for a lead; ready to score."""
+
+    event_type: Literal["LeadEnriched"] = "LeadEnriched"
+    lead_id: UUID

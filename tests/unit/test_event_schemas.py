@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from shared.events.schemas import (
     Event,
     LeadBucket,
+    LeadEnriched,
     LeadReceived,
     LeadSource,
     TenantActivated,
@@ -91,3 +92,15 @@ def test_lead_received_rejects_invalid_source() -> None:
         LeadReceived.model_validate(
             {"tenant_id": str(uuid4()), "lead_id": str(uuid4()), "source": "CARRIER_PIGEON"}
         )
+
+
+def test_lead_enriched_carries_lead_id() -> None:
+    tenant_id, lead_id = uuid4(), uuid4()
+    evt = LeadEnriched(tenant_id=tenant_id, lead_id=lead_id)
+    assert evt.event_type == "LeadEnriched"
+    assert evt.lead_id == lead_id
+
+
+def test_lead_enriched_requires_lead_id() -> None:
+    with pytest.raises(ValidationError):
+        LeadEnriched.model_validate({"tenant_id": str(uuid4())})
