@@ -8,6 +8,7 @@ first consumer (see ADR 0001). Other code imports these types directly, e.g.
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,3 +43,9 @@ class Event(BaseModel):
     event_type: str
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     tenant_id: UUID
+
+
+class TenantActivated(Event):
+    """A tenant transitioned to ACTIVE; held leads may now drain (ADR 0001)."""
+
+    event_type: Literal["TenantActivated"] = "TenantActivated"
