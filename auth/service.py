@@ -26,7 +26,8 @@ async def get_or_create_user(session: AsyncSession, principal: Principal) -> Use
     else:
         user.email = principal.email
         user.role = principal.role
-        user.tenant_id = principal.tenant_id
+        if principal.tenant_id is not None:
+            user.tenant_id = principal.tenant_id
     await session.commit()
     await session.refresh(user)
     return user

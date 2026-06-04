@@ -75,3 +75,30 @@ async def test_second_user_for_same_tenant_violates_unique(session: AsyncSession
                 subject="auth0|u2", email="u2@acme.com", tenant_id=tenant.id, role=Role.TENANT
             ),
         )
+
+
+async def test_existing_tenant_link_is_preserved_when_token_lacks_tenant(
+    session: AsyncSession,
+) -> None:
+    # User first appears already linked to a tenant (e.g. claim carried it once).
+    tenant = await create_tenant(
+        session,
+        TenantCreate(
+            company_name="Acme",
+            primary_contact_name="Ada",
+            primary_contact_email="ada@acme.com",
+            business_type=BusinessType.B2B,
+        ),
+    )
+    linked = Principal(
+        subject="auth0|keep", email="ada@acme.com", tenant_id=tenant.id, role=Role.TENANT
+    )
+    await get_or_create_user(session, linked)
+
+    # Next login: same user, but the token carries NO tenant_id.
+    tokenless = Principal(
+        subject="auth0|keep", email="ada@acme.com", tenant_id=None, role=Role.TENANT
+    )
+    user = await get_or_create_user(session, tokenless)
+
+    assert user.tenant_id == tenant.id  # preserved, not wiped
