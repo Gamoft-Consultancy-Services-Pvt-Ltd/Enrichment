@@ -1,5 +1,7 @@
 """Public service for users — the only path to materialise a User from a Principal."""
 
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +32,14 @@ async def get_or_create_user(session: AsyncSession, principal: Principal) -> Use
         # None means "no tenant claim in this token" — don't wipe a DB-owned link.
         if principal.tenant_id is not None:
             user.tenant_id = principal.tenant_id
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def set_user_tenant(session: AsyncSession, user: User, tenant_id: UUID) -> User:
+    """Link a user to a tenant and persist it."""
+    user.tenant_id = tenant_id
     await session.commit()
     await session.refresh(user)
     return user

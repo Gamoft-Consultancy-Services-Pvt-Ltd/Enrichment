@@ -102,3 +102,26 @@ async def test_existing_tenant_link_is_preserved_when_token_lacks_tenant(
     user = await get_or_create_user(session, tokenless)
 
     assert user.tenant_id == tenant.id  # preserved, not wiped
+
+
+async def test_set_user_tenant_links_and_persists(session: AsyncSession) -> None:
+    from auth.service import set_user_tenant
+
+    user = await get_or_create_user(session, _admin_principal("auth0|link"))
+    assert user.tenant_id is None
+
+    tenant = await create_tenant(
+        session,
+        TenantCreate(
+            company_name="Beta",
+            primary_contact_name="Bo",
+            primary_contact_email="bo@beta.com",
+            business_type=BusinessType.B2C,
+        ),
+    )
+    updated = await set_user_tenant(session, user, tenant.id)
+    assert updated.tenant_id == tenant.id
+
+    # Confirm it persisted by re-reading.
+    fresh = (await session.execute(select(User).where(User.auth0_sub == "auth0|link"))).scalar_one()
+    assert fresh.tenant_id == tenant.id
