@@ -1,4 +1,4 @@
-"""Application entry point. Builds the FastAPI app and exposes /health and /me."""
+"""Application entry point. Builds the FastAPI app and exposes /health, /me, /onboarding."""
 
 from fastapi import FastAPI
 
