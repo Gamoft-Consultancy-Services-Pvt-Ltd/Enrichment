@@ -38,7 +38,11 @@ async def get_or_create_user(session: AsyncSession, principal: Principal) -> Use
 
 
 async def set_user_tenant(session: AsyncSession, user: User, tenant_id: UUID) -> User:
-    """Link a user to a tenant and persist it."""
+    """Link a user to a tenant and persist it.
+
+    The caller is responsible for ensuring the tenant exists; a non-existent
+    tenant_id surfaces as an IntegrityError at commit (FK violation).
+    """
     user.tenant_id = tenant_id
     await session.commit()
     await session.refresh(user)
