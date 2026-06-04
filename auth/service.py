@@ -10,8 +10,9 @@ from auth.schemas import Principal
 async def get_or_create_user(session: AsyncSession, principal: Principal) -> User:
     """Return the User for this principal, creating it on first sight.
 
-    Auth0 is the source of truth: an existing row's email/role/tenant_id are
-    refreshed from the principal so changes in Auth0 propagate on next login.
+    Auth0 is the source of truth for email and role (always refreshed on login).
+    tenant_id is DB-owned once set: a token that carries no tenant_id does not
+    overwrite an existing link (it is assigned at onboarding, not by Auth0).
     """
     result = await session.execute(select(User).where(User.auth0_sub == principal.subject))
     user = result.scalar_one_or_none()
@@ -26,6 +27,7 @@ async def get_or_create_user(session: AsyncSession, principal: Principal) -> Use
     else:
         user.email = principal.email
         user.role = principal.role
+        # None means "no tenant claim in this token" — don't wipe a DB-owned link.
         if principal.tenant_id is not None:
             user.tenant_id = principal.tenant_id
     await session.commit()
