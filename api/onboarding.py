@@ -25,6 +25,9 @@ async def onboard(
     """Create the current user's tenant from their business info, then link it."""
     if user.tenant_id is not None:
         raise ConflictError("User is already onboarded to a tenant")
+    # Two commits (create_tenant, then set_user_tenant); a crash between them can
+    # leave an orphan Tenant. Accepted for this slice — don't widen this window by
+    # adding work between the calls. A future onboarding module wraps both in one tx.
     tenant = await create_tenant(session, data)
     await set_user_tenant(session, user, tenant.id)
     return TenantRead.model_validate(tenant)
