@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.models import User
 from auth.schemas import Principal, Role
-from auth.service import get_or_create_user
+from auth.service import get_or_create_user, set_user_tenant
 from shared.tenant.schemas import BusinessType, TenantCreate
 from shared.tenant.service import create_tenant
 
@@ -105,8 +105,6 @@ async def test_existing_tenant_link_is_preserved_when_token_lacks_tenant(
 
 
 async def test_set_user_tenant_links_and_persists(session: AsyncSession) -> None:
-    from auth.service import set_user_tenant
-
     user = await get_or_create_user(session, _admin_principal("auth0|link"))
     assert user.tenant_id is None
 
