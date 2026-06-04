@@ -16,4 +16,4 @@ def test_user_columns_and_constraints() -> None:
     # one user per tenant for now; admins have NULL tenant_id
     assert cols["tenant_id"].nullable is True
     assert cols["tenant_id"].unique is True
-    assert any(fk.column.table.name == "tenants" for fk in cols["tenant_id"].foreign_keys)
+    assert any(fk.target_fullname == "tenants.id" for fk in cols["tenant_id"].foreign_keys)
