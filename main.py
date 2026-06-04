@@ -1,10 +1,15 @@
-"""Application entry point. Builds the FastAPI app and exposes /health."""
+"""Application entry point. Builds the FastAPI app and exposes /health and /me."""
 
 from fastapi import FastAPI
 
+from api.me import router as me_router
+from api.middleware import app_error_handler
+from core.exceptions import AppError
 from core.lifespan import lifespan
 
 app = FastAPI(title="Lead Intelligence Engine", version="0.1.0", lifespan=lifespan)
+app.add_exception_handler(AppError, app_error_handler)
+app.include_router(me_router)
 
 
 @app.get("/health")
