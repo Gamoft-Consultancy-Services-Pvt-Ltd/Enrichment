@@ -36,7 +36,9 @@ class Principal(BaseModel):
             raw_tenant = claims.get(f"{namespace}tenant_id")
             return cls(
                 subject=claims["sub"],
-                email=claims["email"],
+                # Auth0 only allows namespaced custom claims on the access token,
+                # so email arrives as `{namespace}email`, not a bare `email`.
+                email=claims[f"{namespace}email"],
                 role=Role(claims[f"{namespace}role"]),
                 tenant_id=UUID(raw_tenant) if raw_tenant else None,
             )

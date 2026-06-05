@@ -20,7 +20,7 @@ def test_principal_from_claims_tenant_user() -> None:
     tenant_id = uuid4()
     claims = {
         "sub": "auth0|abc",
-        "email": "user@acme.com",
+        f"{NS}email": "user@acme.com",
         f"{NS}role": "TENANT",
         f"{NS}tenant_id": str(tenant_id),
     }
@@ -32,7 +32,7 @@ def test_principal_from_claims_tenant_user() -> None:
 
 
 def test_principal_from_claims_admin_has_no_tenant() -> None:
-    claims = {"sub": "auth0|admin", "email": "ops@us.com", f"{NS}role": "PLATFORM_ADMIN"}
+    claims = {"sub": "auth0|admin", f"{NS}email": "ops@us.com", f"{NS}role": "PLATFORM_ADMIN"}
     p = Principal.from_claims(claims, NS)
     assert p.role is Role.PLATFORM_ADMIN
     assert p.tenant_id is None
@@ -45,7 +45,7 @@ def test_principal_from_claims_missing_email_raises_auth_error() -> None:
 
 
 def test_principal_from_claims_invalid_role_raises_auth_error() -> None:
-    claims = {"sub": "auth0|abc", "email": "u@a.com", f"{NS}role": "WIZARD"}
+    claims = {"sub": "auth0|abc", f"{NS}email": "u@a.com", f"{NS}role": "WIZARD"}
     with pytest.raises(AuthenticationError):
         Principal.from_claims(claims, NS)
 
