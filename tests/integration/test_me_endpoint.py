@@ -20,7 +20,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     def fake_verify(token: str) -> dict[str, Any]:
         if token == "admin-token":
-            return {"sub": "auth0|admin", "email": "ops@us.com", f"{NS}role": "PLATFORM_ADMIN"}
+            return {"sub": "auth0|admin", f"{NS}email": "ops@us.com", f"{NS}role": "PLATFORM_ADMIN"}
         from core.exceptions import AuthenticationError
 
         raise AuthenticationError("bad token")

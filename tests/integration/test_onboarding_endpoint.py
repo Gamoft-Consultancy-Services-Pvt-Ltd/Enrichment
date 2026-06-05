@@ -40,7 +40,7 @@ async def client(
 
     def fake_verify(token: str) -> dict[str, Any]:
         if token == "tenant-token":
-            return {"sub": "auth0|newtenant", "email": "ada@acme.com", f"{NS}role": "TENANT"}
+            return {"sub": "auth0|newtenant", f"{NS}email": "ada@acme.com", f"{NS}role": "TENANT"}
         from core.exceptions import AuthenticationError
 
         raise AuthenticationError("bad token")
