@@ -7,6 +7,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# Import every model module so Base.metadata is complete: the truncation below
+# walks Base.metadata.sorted_tables, which resolves cross-table foreign keys.
+import auth.models  # noqa: E402, F401
+import shared.tenant.models  # noqa: E402, F401
 from core.config import get_settings
 from core.db import Base
 

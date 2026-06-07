@@ -49,3 +49,21 @@ def test_settings_database_url_from_environment(monkeypatch: pytest.MonkeyPatch)
 def test_get_settings_is_cached() -> None:
     """get_settings returns the same instance every call (parsed once)."""
     assert get_settings() is get_settings()
+
+
+def test_auth0_settings_have_sensible_defaults() -> None:
+    """Auth0 settings default to empty domain/audience, RS256, the claim namespace."""
+    settings = build_settings()
+
+    assert settings.auth0_domain == ""
+    assert settings.auth0_audience == ""
+    assert settings.auth0_algorithms == ["RS256"]
+    assert settings.auth_claim_namespace == "https://leadengine/"
+
+
+def test_auth0_settings_are_overridable() -> None:
+    """Auth0 domain/audience can be overridden (here via direct construction)."""
+    settings = build_settings(auth0_domain="acme.us.auth0.com", auth0_audience="api://leadengine")
+
+    assert settings.auth0_domain == "acme.us.auth0.com"
+    assert settings.auth0_audience == "api://leadengine"
