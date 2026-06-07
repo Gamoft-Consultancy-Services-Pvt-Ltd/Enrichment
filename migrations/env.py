@@ -12,6 +12,7 @@ from sqlalchemy import engine_from_config, pool
 
 import auth.models  # noqa: F401  (register the users table on Base.metadata)
 import shared.tenant.models  # noqa: F401  (register models on Base.metadata)
+import shared.tenant_config.models  # noqa: F401  (register the tenant_configs table on Base.metadata)
 from core.config import get_settings
 from core.db import Base
 
