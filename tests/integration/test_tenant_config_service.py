@@ -84,3 +84,62 @@ async def test_get_active_config_returns_none_when_no_active(session: AsyncSessi
 
 async def test_get_active_config_missing_tenant_returns_none(session: AsyncSession) -> None:
     assert await service.get_active_config(session, uuid4()) is None
+
+
+async def test_approve_draft_makes_it_active(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    draft = await service.create_draft(session, tenant_id, _payload())
+
+    approved = await service.approve_version(session, draft.id)
+
+    assert approved.status is ConfigStatus.ACTIVE
+    assert approved.activated_at is not None
+    active = await service.get_active_config(session, tenant_id)
+    assert active is not None
+    assert active.id == draft.id
+
+
+async def test_approving_new_version_archives_previous_active(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    first = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, first.id)  # version 1 active
+
+    second = await service.create_draft(session, tenant_id, _payload())  # version 2 draft
+    await service.approve_version(session, second.id)  # promote version 2
+
+    active = await service.get_active_config(session, tenant_id)
+    assert active is not None
+    assert active.version == 2
+
+    versions = {v.version: v.status for v in await service.list_versions(session, tenant_id)}
+    assert versions[1] is ConfigStatus.ARCHIVED
+    assert versions[2] is ConfigStatus.ACTIVE
+
+
+async def test_approve_archived_version_is_rollback(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    first = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, first.id)
+    second = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, second.id)  # version 1 now ARCHIVED
+
+    rolled_back = await service.approve_version(session, first.id)  # re-activate version 1
+
+    assert rolled_back.status is ConfigStatus.ACTIVE
+    active = await service.get_active_config(session, tenant_id)
+    assert active is not None
+    assert active.version == 1
+
+
+async def test_approve_already_active_raises_conflict(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    draft = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, draft.id)
+
+    with pytest.raises(ConflictError):
+        await service.approve_version(session, draft.id)
+
+
+async def test_approve_missing_version_raises_not_found(session: AsyncSession) -> None:
+    with pytest.raises(NotFoundError):
+        await service.approve_version(session, uuid4())

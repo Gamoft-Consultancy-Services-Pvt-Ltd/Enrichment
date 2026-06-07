@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import ConflictError
+from core.exceptions import ConflictError, NotFoundError
 from shared.tenant_config.models import TenantConfig
 from shared.tenant_config.schemas import ConfigStatus, TenantConfigCreate, TenantConfigRead
 
@@ -56,6 +56,44 @@ async def create_draft(
         thresholds=data.thresholds.model_dump(),
     )
     session.add(config)
+    await session.commit()
+    await session.refresh(config)
+    return TenantConfigRead.model_validate(config)
+
+
+async def approve_version(session: AsyncSession, config_id: UUID) -> TenantConfigRead:
+    """Promote a DRAFT (or roll back to an ARCHIVED) version to ACTIVE.
+
+    Any current ACTIVE version for the same tenant is archived in the same
+    transaction. The previous ACTIVE is flushed to ARCHIVED *before* the new row
+    is set ACTIVE, so the `uq_active_config_per_tenant` partial unique index is
+    never momentarily violated. Raises ConflictError if the target is already
+    ACTIVE or is REJECTED; NotFoundError if it does not exist.
+    """
+    config = await session.get(TenantConfig, config_id)
+    if config is None:
+        raise NotFoundError(f"Config {config_id} not found")
+    if config.status is ConfigStatus.ACTIVE:
+        raise ConflictError(f"Config {config_id} is already active")
+    if config.status is ConfigStatus.REJECTED:
+        raise ConflictError(f"Config {config_id} is rejected and cannot be activated")
+
+    now = datetime.now(UTC)
+    current = await session.execute(
+        select(TenantConfig).where(
+            TenantConfig.tenant_id == config.tenant_id,
+            TenantConfig.status == ConfigStatus.ACTIVE,
+        )
+    )
+    active = current.scalar_one_or_none()
+    if active is not None:
+        active.status = ConfigStatus.ARCHIVED
+        active.archived_at = now
+        await session.flush()  # archive the old ACTIVE before the new one is set ACTIVE
+
+    config.status = ConfigStatus.ACTIVE
+    config.activated_at = now
+    config.archived_at = None  # clear if this is a rollback of a previously archived version
     await session.commit()
     await session.refresh(config)
     return TenantConfigRead.model_validate(config)
