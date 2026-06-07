@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine"
 
+    # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
+    auth0_domain: str = ""
+    auth0_audience: str = ""
+    auth0_algorithms: list[str] = ["RS256"]
+    auth_claim_namespace: str = "https://leadengine/"
+    # SPA Client ID used only so the /docs "Authorize" button can run the Auth0 login.
+    auth0_spa_client_id: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

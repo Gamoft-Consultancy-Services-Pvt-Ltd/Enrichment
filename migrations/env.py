@@ -10,6 +10,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import auth.models  # noqa: F401  (register the users table on Base.metadata)
 import shared.tenant.models  # noqa: F401  (register models on Base.metadata)
 from core.config import get_settings
 from core.db import Base
