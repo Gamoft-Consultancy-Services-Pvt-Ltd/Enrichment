@@ -143,3 +143,54 @@ async def test_approve_already_active_raises_conflict(session: AsyncSession) -> 
 async def test_approve_missing_version_raises_not_found(session: AsyncSession) -> None:
     with pytest.raises(NotFoundError):
         await service.approve_version(session, uuid4())
+
+
+async def test_reject_draft_marks_it_rejected(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    draft = await service.create_draft(session, tenant_id, _payload())
+
+    rejected = await service.reject_version(session, draft.id)
+
+    assert rejected.status is ConfigStatus.REJECTED
+    assert rejected.archived_at is not None
+    assert await service.get_active_config(session, tenant_id) is None
+
+
+async def test_reject_non_draft_raises_conflict(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    draft = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, draft.id)  # now ACTIVE, not a draft
+
+    with pytest.raises(ConflictError):
+        await service.reject_version(session, draft.id)
+
+
+async def test_approve_rejected_version_raises_conflict(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    draft = await service.create_draft(session, tenant_id, _payload())
+    await service.reject_version(session, draft.id)
+
+    with pytest.raises(ConflictError):
+        await service.approve_version(session, draft.id)
+
+
+async def test_after_rejecting_a_new_draft_can_be_created(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    first = await service.create_draft(session, tenant_id, _payload())
+    await service.reject_version(session, first.id)
+
+    second = await service.create_draft(session, tenant_id, _payload())
+    assert second.version == 2
+    assert second.status is ConfigStatus.DRAFT
+
+
+async def test_list_versions_returns_all_newest_first(session: AsyncSession) -> None:
+    tenant_id = await _make_tenant(session)
+    first = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, first.id)
+    second = await service.create_draft(session, tenant_id, _payload())
+    await service.approve_version(session, second.id)
+
+    versions = await service.list_versions(session, tenant_id)
+
+    assert [v.version for v in versions] == [2, 1]

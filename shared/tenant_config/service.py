@@ -99,6 +99,32 @@ async def approve_version(session: AsyncSession, config_id: UUID) -> TenantConfi
     return TenantConfigRead.model_validate(config)
 
 
+async def reject_version(session: AsyncSession, config_id: UUID) -> TenantConfigRead:
+    """Reject a DRAFT version. Raises ConflictError if it is not a DRAFT."""
+    config = await session.get(TenantConfig, config_id)
+    if config is None:
+        raise NotFoundError(f"Config {config_id} not found")
+    if config.status is not ConfigStatus.DRAFT:
+        raise ConflictError(
+            f"Config {config_id} is not a draft (status {config.status.value})"
+        )
+    config.status = ConfigStatus.REJECTED
+    config.archived_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(config)
+    return TenantConfigRead.model_validate(config)
+
+
+async def list_versions(session: AsyncSession, tenant_id: UUID) -> list[TenantConfigRead]:
+    """Return all versions for a tenant, newest first."""
+    result = await session.execute(
+        select(TenantConfig)
+        .where(TenantConfig.tenant_id == tenant_id)
+        .order_by(TenantConfig.version.desc())
+    )
+    return [TenantConfigRead.model_validate(c) for c in result.scalars().all()]
+
+
 async def _next_version(session: AsyncSession, tenant_id: UUID) -> int:
     """The next monotonic version number for a tenant (1 if none yet)."""
     result = await session.execute(
