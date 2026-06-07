@@ -16,11 +16,15 @@ creating the `tenants` table, and the integration-test harness
 `LeadSource`/`LeadBucket` enums, and four events (`TenantActivated`,
 `LeadReceived`, `LeadEnriched`, `LeadScored`) — pure pydantic, no
 publish/subscribe/bus yet (delivery lands with its first consumer,
-`orchestration`, per ADR 0001). Still empty stubs: `core/cache.py`,
-`core/queue.py` (deferred by YAGNI — build each alongside its first real
-consumer), `clients/`, `auth/`, the other `shared/` submodules
-(`tenant_config`, `prompt_registry`, `audit`), and all of `modules/`. Next up is
-`auth/` (Google OAuth, `platform_admin`/`tenant` roles). When adding the first
+`orchestration`, per ADR 0001). `shared/tenant_config` is built too: a versioned
+per-tenant scoring-config registry (public `schemas.py` + `service.py`, internal
+`models.py`; the `tenant_configs` table) with a `DRAFT → ACTIVE → ARCHIVED` /
+`REJECTED` lifecycle and partial unique indexes enforcing one ACTIVE and one
+DRAFT per tenant (`prompt_registry` is dropped — this *is* the registry). Still
+empty stubs: `core/cache.py`, `core/queue.py` (deferred by YAGNI — build each
+alongside its first real consumer), `clients/`, `auth/`, the other `shared/`
+submodule (`audit`), and all of `modules/`. Next up is `auth/` (Google OAuth,
+`platform_admin`/`tenant` roles). When adding the first
 real code to a module, you are establishing its public surface — follow the
 boundary rules below from the start.
 
@@ -40,10 +44,11 @@ communicates across boundaries only via `shared/events` and public services.
 
 1. **Tenant onboarding** (`modules/tenant_onboarding`) — takes a new tenant from
    signup to `active`. A chain of Sonnet agents (Business Profile → Persona →
-   ICP → Signal → prompt generation) builds a locked `PersonaObject`, ICP, signal
-   definitions, and a versioned scoring prompt committed to `prompt_registry`
-   (`draft → evaluation → active`). Re-runs produce a *new* prompt version and
-   deactivate the prior one without disrupting live scoring.
+   ICP → Signal) builds a versioned `tenant_config` (business profile, ICP,
+   signal definitions, per-dimension weights, and thresholds) with a
+   human-approved `DRAFT → ACTIVE → ARCHIVED` lifecycle; the scoring prompt
+   *template* lives in `modules/scoring` code. Re-runs produce a *new* version
+   that supersedes the prior one without disrupting live scoring.
 2. **Lead ingestion** (`modules/lead_ingestion`) — accepts leads from four
    sources (Google Sheets pull; Email/WhatsApp/Instagram push), attributes each
    to a tenant, filters genuine leads from noise, normalises them, and emits
@@ -53,7 +58,8 @@ communicates across boundaries only via `shared/events` and public services.
    lookup: Layer 0 cache → Surepass → Serper → NewsCatcher → Probe42, stopping as
    soon as there's enough to score. B2C uses first-party data instead.
 4. **Scoring** (`modules/scoring`) — "Pipeline 1 at runtime". Loads the tenant's
-   active prompt + `PersonaObject` + `tenant_config`, scores across five
+   active `tenant_config` version (business profile, ICP, signals, weights,
+   thresholds), scores across five
    dimensions (Fit, Intent, Engagement, Behaviour, Context), applies weights and
    thresholds (default HOT ≥ 80, WARM ≥ 55, else COLD), persists score + reasoning
    trace, emits `LeadScored`, and triggers notification for HOT leads (5-min SLA).
