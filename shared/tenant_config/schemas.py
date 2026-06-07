@@ -5,10 +5,12 @@ validated value objects (signals, weights, thresholds). models.py, service.py,
 modules/scoring, and tests import from here — never from models.py.
 """
 
+from datetime import datetime
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
+from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ConfigStatus(StrEnum):
@@ -66,3 +68,50 @@ class Thresholds(BaseModel):
         if self.hot <= self.warm:
             raise ValueError(f"hot ({self.hot}) must be greater than warm ({self.warm})")
         return self
+
+
+class TenantConfigCreate(BaseModel):
+    """The draft payload produced for a new version (manual now, agent later)."""
+
+    business_profile: dict[str, Any]
+    icp: dict[str, Any]
+    signals: list[Signal]
+    weights: Weights
+    thresholds: Thresholds
+
+    @field_validator("signals")
+    @classmethod
+    def _cover_all_dimensions_with_unique_ids(cls, value: list[Signal]) -> list[Signal]:
+        if not value:
+            raise ValueError("signals must not be empty")
+        ids = [s.id for s in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("signal ids must be unique within a version")
+        missing = set(Dimension) - {s.dimension for s in value}
+        if missing:
+            names = ", ".join(sorted(d.value for d in missing))
+            raise ValueError(f"every dimension needs at least one signal; missing: {names}")
+        return value
+
+
+class TenantConfigRead(BaseModel):
+    """The full config record returned to callers; built from the ORM object.
+
+    The JSONB columns come back as plain dicts/lists; pydantic re-validates them
+    into the typed value objects, so a hand-edited bad row is caught on read.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    version: int
+    status: ConfigStatus
+    business_profile: dict[str, Any]
+    icp: dict[str, Any]
+    signals: list[Signal]
+    weights: Weights
+    thresholds: Thresholds
+    created_at: datetime
+    activated_at: datetime | None
+    archived_at: datetime | None
