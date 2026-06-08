@@ -7,6 +7,7 @@ assertions share one session (clean per test, single event loop).
 
 from collections.abc import AsyncIterator
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import auth.token as token_module
 from auth.models import User
 from core.db import get_session
+from core.queue import get_arq_pool
 from main import app
 
 NS = "https://leadengine/"
@@ -35,9 +37,9 @@ _BUSINESS = {
 async def client(
     monkeypatch: pytest.MonkeyPatch, session: AsyncSession
 ) -> AsyncIterator[AsyncClient]:
-    """Async client for the app, with token verification stubbed and the DB session
-    overridden to the per-test (truncated) session. 'tenant-token' is a logged-in
-    TENANT user who has not onboarded yet (no tenant_id claim)."""
+    """Async client for the app, with token verification stubbed, DB session
+    overridden, and ARQ pool mocked. 'tenant-token' is a logged-in TENANT user
+    who has not onboarded yet (no tenant_id claim)."""
 
     def fake_verify(token: str) -> dict[str, Any]:
         if token == "tenant-token":
@@ -51,7 +53,11 @@ async def client(
     async def _use_test_session() -> AsyncIterator[AsyncSession]:
         yield session
 
+    mock_pool = AsyncMock()
+    mock_pool.enqueue_job = AsyncMock()
+
     app.dependency_overrides[get_session] = _use_test_session
+    app.dependency_overrides[get_arq_pool] = lambda: mock_pool
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -107,3 +113,11 @@ async def test_onboarding_returns_pending_onboarding_status(client: AsyncClient)
     resp = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
     assert resp.status_code == 200
     assert resp.json()["onboarding_status"] == "PENDING"
+
+
+async def test_onboarding_enqueues_pipeline_job(client: AsyncClient) -> None:
+    mock_pool = app.dependency_overrides[get_arq_pool]()
+    resp = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
+    assert resp.status_code == 200
+    mock_pool.enqueue_job.assert_awaited_once()
+    assert mock_pool.enqueue_job.call_args.args[0] == "run_onboarding_pipeline"
