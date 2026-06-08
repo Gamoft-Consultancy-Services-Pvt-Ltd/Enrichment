@@ -16,6 +16,8 @@ def test_tenant_has_the_expected_columns() -> None:
         "primary_contact_name",
         "primary_contact_email",
         "business_type",
+        "website_url",
+        "onboarding_status",
         "status",
         "timezone",
         "language_preference",
