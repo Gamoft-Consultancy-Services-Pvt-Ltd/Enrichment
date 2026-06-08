@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from shared.tenant.schemas import (
     BusinessType,
+    OnboardingStatus,
     TenantCreate,
     TenantRead,
     TenantStatus,
@@ -34,6 +35,7 @@ def test_tenant_create_accepts_valid_input() -> None:
         primary_contact_name="Asha",
         primary_contact_email="asha@gamoft.com",
         business_type=BusinessType.B2B,
+        website_url="https://gamoft.com",  # type: ignore[arg-type]
     )
     assert data.business_type is BusinessType.B2B
     # timezone/language fall back to defaults
@@ -82,6 +84,8 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
         primary_contact_name="Asha",
         primary_contact_email="asha@gamoft.com",
         business_type=BusinessType.B2B,
+        website_url="https://gamoft.com",
+        onboarding_status=OnboardingStatus.PENDING,
         status=TenantStatus.CREATED,
         timezone="UTC",
         language_preference="en",
@@ -92,4 +96,5 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
     read = TenantRead.model_validate(obj)
     assert read.company_name == "Gamoft"
     assert read.status is TenantStatus.CREATED
+    assert read.onboarding_status is OnboardingStatus.PENDING
     assert read.activated_at is None

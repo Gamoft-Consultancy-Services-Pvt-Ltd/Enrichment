@@ -25,6 +25,7 @@ _BUSINESS = {
     "primary_contact_name": "Ada",
     "primary_contact_email": "ada@acme.com",
     "business_type": "B2B",
+    "website_url": "https://acme.com",
     "timezone": "UTC",
     "language_preference": "en",
 }
@@ -100,3 +101,9 @@ async def test_second_onboarding_is_conflict(client: AsyncClient) -> None:
 async def test_onboarding_without_token_is_401(client: AsyncClient) -> None:
     resp = await client.post("/onboarding", json=_BUSINESS)
     assert resp.status_code == 401
+
+
+async def test_onboarding_returns_pending_onboarding_status(client: AsyncClient) -> None:
+    resp = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_status"] == "PENDING"

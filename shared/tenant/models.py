@@ -12,7 +12,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
-from shared.tenant.schemas import BusinessType, TenantStatus
+from shared.tenant.schemas import BusinessType, OnboardingStatus, TenantStatus
 
 
 class Tenant(Base):
@@ -26,6 +26,10 @@ class Tenant(Base):
     primary_contact_email: Mapped[str] = mapped_column(String, nullable=False)
     business_type: Mapped[BusinessType] = mapped_column(
         SQLEnum(BusinessType, name="business_type"), nullable=False
+    )
+    website_url: Mapped[str] = mapped_column(String, nullable=False)
+    onboarding_status: Mapped[OnboardingStatus] = mapped_column(
+        String, nullable=False, default=OnboardingStatus.PENDING
     )
     status: Mapped[TenantStatus] = mapped_column(
         SQLEnum(TenantStatus, name="tenant_status"),
