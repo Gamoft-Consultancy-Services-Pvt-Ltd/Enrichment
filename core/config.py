@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine"
 
     redis_url: str = "redis://localhost:6379"
-    anthropic_api_key: str = ""
+    groq_api_key: str = ""
 
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""
