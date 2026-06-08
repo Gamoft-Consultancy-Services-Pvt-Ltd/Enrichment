@@ -63,6 +63,7 @@ def test_tenant_create_rejects_invalid_email() -> None:
             primary_contact_name="Asha",
             primary_contact_email="not-an-email",
             business_type=BusinessType.B2B,
+            website_url="https://gamoft.com",  # type: ignore[arg-type]
         )
 
 
