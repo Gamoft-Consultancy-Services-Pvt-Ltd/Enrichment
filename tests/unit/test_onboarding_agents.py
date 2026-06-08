@@ -1,9 +1,6 @@
 """Unit tests for the three onboarding agents — Groq client is mocked."""
 
-from typing import Any
 from unittest.mock import AsyncMock, patch
-
-import pytest
 
 from modules.tenant_onboarding.agents import icp, persona, signals
 from shared.tenant.schemas import BusinessType
