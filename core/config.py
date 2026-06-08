@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine"
 
+    redis_url: str = "redis://localhost:6379"
+    anthropic_api_key: str = ""
+
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""
     auth0_audience: str = ""
