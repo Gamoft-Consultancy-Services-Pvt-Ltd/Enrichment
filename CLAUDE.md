@@ -4,29 +4,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 — building the foundation.** Built test-first and merged to `main`:
-all `core/` infrastructure (`config.py`, `logging.py`, `lifespan.py` wired into
-`main.py`, `exceptions.py`, `db.py`) and the first cross-cutting domain module,
-`shared/tenant` (the `Tenant` entity + status lifecycle: public `schemas.py` +
-`service.py`, internal `models.py`). Alembic is now wired up (`migrations/env.py`
-runs sync via psycopg2 against `core.db.Base.metadata`) with the first migration
-creating the `tenants` table, and the integration-test harness
-(`tests/integration/conftest.py`) is in place. `shared/events` is also built
-(contracts-only): `schemas.py` defines the frozen `Event` envelope, the
-`LeadSource`/`LeadBucket` enums, and four events (`TenantActivated`,
-`LeadReceived`, `LeadEnriched`, `LeadScored`) — pure pydantic, no
-publish/subscribe/bus yet (delivery lands with its first consumer,
-`orchestration`, per ADR 0001). `shared/tenant_config` is built too: a versioned
-per-tenant scoring-config registry (public `schemas.py` + `service.py`, internal
-`models.py`; the `tenant_configs` table) with a `DRAFT → ACTIVE → ARCHIVED` /
-`REJECTED` lifecycle and partial unique indexes enforcing one ACTIVE and one
-DRAFT per tenant (`prompt_registry` is dropped — this *is* the registry). Still
-empty stubs: `core/cache.py`, `core/queue.py` (deferred by YAGNI — build each
-alongside its first real consumer), `clients/`, `auth/`, the other `shared/`
-submodule (`audit`), and all of `modules/`. Next up is `auth/` (Google OAuth,
-`platform_admin`/`tenant` roles). When adding the first
-real code to a module, you are establishing its public surface — follow the
-boundary rules below from the start.
+**Phase 1 — tenant onboarding pipeline complete.** All of the following have
+been built test-first:
+
+**`core/` (complete):** `config.py` (settings incl. `redis_url`, `groq_api_key`),
+`logging.py`, `lifespan.py` (inits/closes ARQ pool on startup/shutdown),
+`main.py`, `exceptions.py`, `db.py`, `queue.py` (ARQ pool + `get_arq_pool`
+FastAPI dep). Still a stub: `core/cache.py` (deferred — build with first cache
+consumer).
+
+**`auth/` (complete):** Auth0 JWT verification, `GET /me`, `POST /onboarding`
+auth, two roles (`platform_admin`, `tenant`).
+
+**`shared/tenant` (complete):** `Tenant` entity with full status lifecycle
+(`CREATED → ACTIVE`); `TenantCreate` requires `website_url: AnyHttpUrl`;
+`TenantRead` exposes `website_url: str` and `onboarding_status: OnboardingStatus`
+(`PENDING / RUNNING / COMPLETE / FAILED`). `set_onboarding_status` is the
+service function the pipeline uses to update progress.
+
+**`shared/tenant_config` (complete):** Versioned per-tenant scoring-config
+registry (`tenant_configs` table). Simplified lifecycle: `ACTIVE → ARCHIVED`
+only — no DRAFT or human-approval step. `create_active` atomically archives
+the previous ACTIVE version and inserts a new one. One partial unique index
+enforces a single ACTIVE per tenant. (`prompt_registry` is dropped — this *is*
+the registry.)
+
+**`shared/events` (complete, contracts-only):** Frozen `Event` envelope,
+`LeadSource`/`LeadBucket` enums, four event types (`TenantActivated`,
+`LeadReceived`, `LeadEnriched`, `LeadScored`). No publish/subscribe/bus yet
+(delivery lands with its first consumer, `orchestration`, per ADR 0001).
+
+**`clients/groq_client.py` (complete):** Thin async wrapper around the Groq SDK.
+`call_with_tool(prompt, tool_name, tool_description, input_schema)` forces
+structured JSON output via Groq function calling (`llama-3.3-70b-versatile`,
+temperature=0). Only file in the project that imports `groq`.
+
+**`modules/tenant_onboarding` (complete):** Fully automated three-agent pipeline
+triggered by `POST /onboarding`. No human review step.
+- `agents/persona.py` — website text → structured business profile
+- `agents/icp.py` — business profile → ideal customer profile
+- `agents/signals.py` — profile + ICP → signals, weights, thresholds
+- `pipeline.py` — fetches website (httpx), runs agents in sequence, calls
+  `create_active`, calls `activate_tenant`, updates `onboarding_status`.
+  Sets `RUNNING` on start, `COMPLETE` on success, `FAILED` on any exception.
+
+**`workers/` (complete):** `worker.py` (`WorkerSettings` registers jobs for ARQ).
+`workers/jobs/onboarding.py` (`run_onboarding_pipeline` — creates its own DB
+session, calls `pipeline.run_pipeline`).
+
+**`api/onboarding.py` (complete):** `POST /onboarding` creates the tenant,
+links the user, and immediately enqueues `run_onboarding_pipeline` via the ARQ
+pool. The tenant polls `GET /me` for `onboarding_status` to track progress.
+
+**Migrations applied:** `tenants` table (initial), `tenant_configs` table,
+`simplify_config_status` (ACTIVE/ARCHIVED only), `add_website_url_onboarding_status_to_tenants`.
+
+**Still empty stubs:** `core/cache.py`, `shared/audit/`, all other `modules/`
+(`lead_ingestion`, `orchestration`, `enrichment`, `scoring`, `reporting`,
+`notification`), most of `clients/`. **Next up: `modules/lead_ingestion`.**
+
+When adding the first real code to a module, you are establishing its public
+surface — follow the boundary rules below from the start.
 
 ## What this is
 
@@ -43,12 +81,14 @@ Four module-spanning workflows. Each lives behind a module's public service and
 communicates across boundaries only via `shared/events` and public services.
 
 1. **Tenant onboarding** (`modules/tenant_onboarding`) — takes a new tenant from
-   signup to `active`. A chain of Sonnet agents (Business Profile → Persona →
-   ICP → Signal) builds a versioned `tenant_config` (business profile, ICP,
-   signal definitions, per-dimension weights, and thresholds) with a
-   human-approved `DRAFT → ACTIVE → ARCHIVED` lifecycle; the scoring prompt
-   *template* lives in `modules/scoring` code. Re-runs produce a *new* version
-   that supersedes the prior one without disrupting live scoring.
+   signup to `active` with no human input. Triggered by `POST /onboarding`
+   (tenant provides `website_url`). An ARQ background job fetches the website,
+   then runs three Groq agents in sequence (Persona → ICP → Signals) to build a
+   versioned `tenant_config` (business profile, ICP, signal definitions,
+   per-dimension weights, thresholds). Writes directly as `ACTIVE` — no
+   DRAFT/approval step. Re-runs produce a new version that supersedes the prior
+   one without disrupting live scoring. The scoring prompt *template* lives in
+   `modules/scoring` code.
 2. **Lead ingestion** (`modules/lead_ingestion`) — accepts leads from four
    sources (Google Sheets pull; Email/WhatsApp/Instagram push), attributes each
    to a tenant, filters genuine leads from noise, normalises them, and emits
@@ -114,9 +154,10 @@ main.py → api/ and workers/ → modules/ and auth/ → shared/ → clients/ �
 - `core/` — infrastructure: config, db, cache, queue, logging, lifespan, exceptions.
 - `auth/` — Google OAuth, sessions, and two roles: `platform_admin` and `tenant`.
 - `shared/` — cross-cutting domain used by many modules: `tenant`,
-  `tenant_config`, `prompt_registry`, `audit`, `events`.
-- `clients/` — thin wrappers for external services: Surepass, Probe42,
-  NewsCatcher, Serper, Sonnet (Anthropic).
+  `tenant_config`, `audit`, `events`. (`prompt_registry` is dropped — merged
+  into `tenant_config`.)
+- `clients/` — thin wrappers for external services: `groq_client` (LLM via
+  Groq), and stubs for Surepass, Probe42, NewsCatcher, Serper.
 - `modules/` — business logic, one folder each: `tenant_onboarding`,
   `lead_ingestion`, `orchestration`, `enrichment`, `scoring`, `reporting`,
   `notification`.
@@ -128,7 +169,8 @@ main.py → api/ and workers/ → modules/ and auth/ → shared/ → clients/ �
 
 FastAPI · uv (package manager) · PostgreSQL via SQLAlchemy 2.0 + Alembic
 (async `asyncpg`) · Redis + cachetools (in-process) · ARQ (Redis-backed async
-queue) · Anthropic Sonnet for LLM · structlog · pytest.
+queue) · Groq (`llama-3.3-70b-versatile`, function calling, temperature=0) ·
+httpx · structlog · pytest.
 
 ## Cross-cutting domain rules
 
