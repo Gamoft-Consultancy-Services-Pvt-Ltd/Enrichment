@@ -16,10 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class ConfigStatus(StrEnum):
     """The lifecycle state of a single tenant_config version."""
 
-    DRAFT = "DRAFT"
-    ACTIVE = "ACTIVE"
+    ACTIVE   = "ACTIVE"
     ARCHIVED = "ARCHIVED"
-    REJECTED = "REJECTED"
 
 
 class Dimension(StrEnum):

@@ -2,10 +2,8 @@
 
 from uuid import UUID, uuid4
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import ConflictError, NotFoundError
 from shared.tenant import service as tenant_service
 from shared.tenant.schemas import BusinessType, TenantCreate
 from shared.tenant_config import service
@@ -48,148 +46,55 @@ async def _make_tenant(session: AsyncSession) -> UUID:
             primary_contact_name="Asha",
             primary_contact_email="asha@gamoft.com",
             business_type=BusinessType.B2B,
+            website_url="https://gamoft.com",  # type: ignore[arg-type]
         ),
     )
     return tenant.id
 
 
-async def test_create_draft_assigns_version_one(session: AsyncSession) -> None:
+async def test_create_active_assigns_version_one(session: AsyncSession) -> None:
     tenant_id = await _make_tenant(session)
 
-    draft = await service.create_draft(session, tenant_id, _payload())
+    config = await service.create_active(session, tenant_id, _payload())
 
-    assert draft.version == 1
-    assert draft.status is ConfigStatus.DRAFT
-    assert draft.tenant_id == tenant_id
-    assert draft.activated_at is None
-    assert draft.weights.fit == 0.2
+    assert config.version == 1
+    assert config.status is ConfigStatus.ACTIVE
+    assert config.tenant_id == tenant_id
+    assert config.activated_at is not None
+    assert config.weights.fit == 0.2
 
 
-async def test_second_create_draft_while_draft_exists_raises_conflict(
-    session: AsyncSession,
-) -> None:
+async def test_create_active_archives_previous(session: AsyncSession) -> None:
     tenant_id = await _make_tenant(session)
-    await service.create_draft(session, tenant_id, _payload())
+    await service.create_active(session, tenant_id, _payload())
 
-    with pytest.raises(ConflictError):
-        await service.create_draft(session, tenant_id, _payload())
+    second = await service.create_active(session, tenant_id, _payload())
 
-
-async def test_get_active_config_returns_none_when_no_active(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    await service.create_draft(session, tenant_id, _payload())  # only a draft, not active
-
-    assert await service.get_active_config(session, tenant_id) is None
-
-
-async def test_get_active_config_missing_tenant_returns_none(session: AsyncSession) -> None:
-    assert await service.get_active_config(session, uuid4()) is None
-
-
-async def test_approve_draft_makes_it_active(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    draft = await service.create_draft(session, tenant_id, _payload())
-
-    approved = await service.approve_version(session, draft.id)
-
-    assert approved.status is ConfigStatus.ACTIVE
-    assert approved.activated_at is not None
-    active = await service.get_active_config(session, tenant_id)
-    assert active is not None
-    assert active.id == draft.id
-
-
-async def test_approving_new_version_archives_previous_active(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    first = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, first.id)  # version 1 active
-
-    second = await service.create_draft(session, tenant_id, _payload())  # version 2 draft
-    await service.approve_version(session, second.id)  # promote version 2
-
-    active = await service.get_active_config(session, tenant_id)
-    assert active is not None
-    assert active.version == 2
-
+    assert second.version == 2
+    assert second.status is ConfigStatus.ACTIVE
     versions = {v.version: v.status for v in await service.list_versions(session, tenant_id)}
     assert versions[1] is ConfigStatus.ARCHIVED
     assert versions[2] is ConfigStatus.ACTIVE
 
 
-async def test_approve_archived_version_is_rollback(session: AsyncSession) -> None:
+async def test_get_active_config_returns_active(session: AsyncSession) -> None:
     tenant_id = await _make_tenant(session)
-    first = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, first.id)
-    second = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, second.id)  # version 1 now ARCHIVED
+    created = await service.create_active(session, tenant_id, _payload())
 
-    rolled_back = await service.approve_version(session, first.id)  # re-activate version 1
-
-    assert rolled_back.status is ConfigStatus.ACTIVE
     active = await service.get_active_config(session, tenant_id)
+
     assert active is not None
-    assert active.version == 1
+    assert active.id == created.id
 
 
-async def test_approve_already_active_raises_conflict(session: AsyncSession) -> None:
+async def test_get_active_config_returns_none_when_absent(session: AsyncSession) -> None:
+    assert await service.get_active_config(session, uuid4()) is None
+
+
+async def test_list_versions_returns_newest_first(session: AsyncSession) -> None:
     tenant_id = await _make_tenant(session)
-    draft = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, draft.id)
-
-    with pytest.raises(ConflictError):
-        await service.approve_version(session, draft.id)
-
-
-async def test_approve_missing_version_raises_not_found(session: AsyncSession) -> None:
-    with pytest.raises(NotFoundError):
-        await service.approve_version(session, uuid4())
-
-
-async def test_reject_draft_marks_it_rejected(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    draft = await service.create_draft(session, tenant_id, _payload())
-
-    rejected = await service.reject_version(session, draft.id)
-
-    assert rejected.status is ConfigStatus.REJECTED
-    assert rejected.archived_at is not None
-    assert await service.get_active_config(session, tenant_id) is None
-
-
-async def test_reject_non_draft_raises_conflict(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    draft = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, draft.id)  # now ACTIVE, not a draft
-
-    with pytest.raises(ConflictError):
-        await service.reject_version(session, draft.id)
-
-
-async def test_approve_rejected_version_raises_conflict(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    draft = await service.create_draft(session, tenant_id, _payload())
-    await service.reject_version(session, draft.id)
-
-    with pytest.raises(ConflictError):
-        await service.approve_version(session, draft.id)
-
-
-async def test_after_rejecting_a_new_draft_can_be_created(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    first = await service.create_draft(session, tenant_id, _payload())
-    await service.reject_version(session, first.id)
-
-    second = await service.create_draft(session, tenant_id, _payload())
-    assert second.version == 2
-    assert second.status is ConfigStatus.DRAFT
-
-
-async def test_list_versions_returns_all_newest_first(session: AsyncSession) -> None:
-    tenant_id = await _make_tenant(session)
-    first = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, first.id)
-    second = await service.create_draft(session, tenant_id, _payload())
-    await service.approve_version(session, second.id)
+    await service.create_active(session, tenant_id, _payload())
+    await service.create_active(session, tenant_id, _payload())
 
     versions = await service.list_versions(session, tenant_id)
 

@@ -23,7 +23,7 @@ def _balanced_weights() -> dict[str, float]:
 
 
 def test_config_status_membership_is_exact() -> None:
-    assert {m.value for m in ConfigStatus} == {"DRAFT", "ACTIVE", "ARCHIVED", "REJECTED"}
+    assert {m.value for m in ConfigStatus} == {"ACTIVE", "ARCHIVED"}
 
 
 def test_dimension_membership_is_exact() -> None:

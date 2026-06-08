@@ -32,12 +32,6 @@ class TenantConfig(Base):
             unique=True,
             postgresql_where=text("status = 'ACTIVE'"),
         ),
-        Index(
-            "uq_draft_config_per_tenant",
-            "tenant_id",
-            unique=True,
-            postgresql_where=text("status = 'DRAFT'"),
-        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
