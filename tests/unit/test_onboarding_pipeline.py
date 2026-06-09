@@ -6,7 +6,12 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
-from modules.tenant_onboarding.pipeline import _combine_page_texts, _extract_domain, _strip_html, run_pipeline
+from modules.tenant_onboarding.pipeline import (
+    _combine_page_texts,
+    _extract_domain,
+    _strip_html,
+    run_pipeline,
+)
 from shared.tenant.schemas import OnboardingStatus
 
 
@@ -203,3 +208,68 @@ def test_combine_page_texts_returns_empty_when_all_fail() -> None:
         RuntimeError("refused"),
     ]
     assert _combine_page_texts(results) == ""
+
+
+async def test_pipeline_falls_back_to_homepage_when_all_page_fetches_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tenant_id = uuid4()
+    mock_session = AsyncMock()
+
+    business_profile = {"industry": "SaaS", "target_market": "SMB"}
+    icp_data = {"buyer_role": "VP Sales", "company_size": "50-200"}
+    from shared.tenant_config.schemas import Dimension, Signal, Thresholds, Weights
+
+    sigs = [Signal(id=f"{d.value.lower()}_1", dimension=d, question="?") for d in Dimension]
+    weights = Weights(fit=0.2, intent=0.2, engagement=0.2, behaviour=0.2, context=0.2)
+    thresholds = Thresholds(hot=80, warm=55)
+
+    set_status_mock = AsyncMock()
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.get_tenant",
+        AsyncMock(return_value=_mock_tenant(tenant_id)),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock
+    )
+    # SerpAPI returns two URLs...
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.search_site_pages",
+        AsyncMock(return_value=["https://acme.com/about", "https://acme.com/products"]),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.persona.run",
+        AsyncMock(return_value=business_profile),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.icp.run", AsyncMock(return_value=icp_data)
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.signals.run",
+        AsyncMock(return_value=(sigs, weights, thresholds)),
+    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.create_active", AsyncMock())
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.activate_tenant", AsyncMock())
+
+    call_count = 0
+
+    async def get_side_effect(url: str, **kwargs: object) -> MagicMock:
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            # First two calls (the gathered SerpAPI pages) raise an exception
+            raise httpx.ConnectError("refused")
+        # Third call is the fallback homepage fetch
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "<html><body>Acme homepage</body></html>"
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    with patch("modules.tenant_onboarding.pipeline.httpx.AsyncClient") as mock_http:
+        mock_http.return_value.__aenter__.return_value.get = get_side_effect
+        await run_pipeline(mock_session, tenant_id)
+
+    calls = [c.args[2] for c in set_status_mock.call_args_list]
+    assert OnboardingStatus.RUNNING in calls
+    assert OnboardingStatus.COMPLETE in calls
