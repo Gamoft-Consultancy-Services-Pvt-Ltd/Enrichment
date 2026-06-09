@@ -67,3 +67,15 @@ def test_auth0_settings_are_overridable() -> None:
 
     assert settings.auth0_domain == "acme.us.auth0.com"
     assert settings.auth0_audience == "api://leadengine"
+
+
+def test_settings_has_serpapi_api_key() -> None:
+    from tests.helpers import build_settings
+    s = build_settings(serpapi_api_key="test-key")
+    assert s.serpapi_api_key == "test-key"
+
+
+def test_settings_serpapi_api_key_defaults_to_empty() -> None:
+    from tests.helpers import build_settings
+    s = build_settings()
+    assert s.serpapi_api_key == ""
