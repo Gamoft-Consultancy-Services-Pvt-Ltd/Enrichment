@@ -70,12 +70,11 @@ def test_auth0_settings_are_overridable() -> None:
 
 
 def test_settings_has_serpapi_api_key() -> None:
-    from tests.helpers import build_settings
-    s = build_settings(serpapi_api_key="test-key")
-    assert s.serpapi_api_key == "test-key"
+    settings = build_settings(serpapi_api_key="test-key")
+    assert settings.serpapi_api_key == "test-key"
 
 
-def test_settings_serpapi_api_key_defaults_to_empty() -> None:
-    from tests.helpers import build_settings
-    s = build_settings()
-    assert s.serpapi_api_key == ""
+def test_settings_serpapi_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
+    settings = build_settings()
+    assert settings.serpapi_api_key == ""
