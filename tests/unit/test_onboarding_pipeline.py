@@ -125,7 +125,7 @@ async def test_pipeline_sets_failed_on_exception(monkeypatch: pytest.MonkeyPatch
     assert OnboardingStatus.FAILED in calls
 
 
-async def test_pipeline_uses_serpapi_pages_when_available(
+async def test_pipeline_uses_serper_pages_when_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tenant_id = uuid4()
@@ -232,7 +232,7 @@ async def test_pipeline_falls_back_to_homepage_when_all_page_fetches_fail(
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock
     )
-    # SerpAPI returns two URLs...
+    # Serper returns two URLs...
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.search_site_pages",
         AsyncMock(return_value=["https://acme.com/about", "https://acme.com/products"]),
@@ -257,7 +257,7 @@ async def test_pipeline_falls_back_to_homepage_when_all_page_fetches_fail(
         nonlocal call_count
         call_count += 1
         if call_count <= 2:
-            # First two calls (the gathered SerpAPI pages) raise an exception
+            # First two calls (the gathered Serper pages) raise an exception
             raise httpx.ConnectError("refused")
         # Third call is the fallback homepage fetch
         resp = MagicMock()

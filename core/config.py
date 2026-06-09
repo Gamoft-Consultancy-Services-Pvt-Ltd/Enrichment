@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379"
     groq_api_key: str = ""
-    serpapi_api_key: str = ""
+    serper_api_key: str = ""
 
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""
