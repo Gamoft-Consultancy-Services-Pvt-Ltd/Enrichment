@@ -18,19 +18,28 @@ def _make_response(status: int, body: dict[str, Any]) -> MagicMock:
 
 async def test_returns_urls_from_organic_results() -> None:
     links = [f"https://example.com/page{i}" for i in range(5)]
-    body = {"organic_results": [{"link": l} for l in links]}
+    body = {"organic_results": [{"link": link} for link in links]}
     mock_resp = _make_response(200, body)
 
     with patch("clients.serpapi_client.httpx.AsyncClient") as mock_cls:
-        mock_cls.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_resp)
+        mock_get = AsyncMock(return_value=mock_resp)
+        mock_cls.return_value.__aenter__.return_value.get = mock_get
         urls = await search_site_pages("example.com", num=5)
 
     assert urls == links
+    call_kwargs = mock_get.call_args
+    assert call_kwargs is not None
+    called_url = call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs.get("url", "")
+    called_params = call_kwargs.kwargs.get("params", {})
+    assert "serpapi.com" in called_url
+    assert called_params.get("q") == "site:example.com"
+    assert called_params.get("num") == 5
+    assert called_params.get("engine") == "google"
 
 
 async def test_respects_num_limit() -> None:
     links = [f"https://example.com/page{i}" for i in range(10)]
-    body = {"organic_results": [{"link": l} for l in links]}
+    body = {"organic_results": [{"link": link} for link in links]}
     mock_resp = _make_response(200, body)
 
     with patch("clients.serpapi_client.httpx.AsyncClient") as mock_cls:
