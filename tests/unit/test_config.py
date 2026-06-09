@@ -69,12 +69,12 @@ def test_auth0_settings_are_overridable() -> None:
     assert settings.auth0_audience == "api://leadengine"
 
 
-def test_settings_has_serpapi_api_key() -> None:
-    settings = build_settings(serpapi_api_key="test-key")
-    assert settings.serpapi_api_key == "test-key"
+def test_settings_has_serper_api_key() -> None:
+    settings = build_settings(serper_api_key="test-key")
+    assert settings.serper_api_key == "test-key"
 
 
-def test_settings_serpapi_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
+def test_settings_serper_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
     settings = build_settings()
-    assert settings.serpapi_api_key == ""
+    assert settings.serper_api_key == ""

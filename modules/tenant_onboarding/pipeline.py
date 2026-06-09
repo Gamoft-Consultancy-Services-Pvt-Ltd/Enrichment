@@ -8,7 +8,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from clients.serpapi_client import search_site_pages
+from clients.serper_client import search_site_pages
 from modules.tenant_onboarding.agents import icp, persona, signals
 from shared.tenant.schemas import OnboardingStatus
 from shared.tenant.service import activate_tenant, get_tenant, set_onboarding_status

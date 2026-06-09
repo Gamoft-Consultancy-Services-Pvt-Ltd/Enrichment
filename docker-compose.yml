@@ -44,6 +44,8 @@ services:
   worker:
     build: .
     env_file: .env
+    environment:
+      PYTHONPATH: /app
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,7 +53,17 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
-    command: uv run python workers/worker.py
+    command: uv run arq workers.worker.WorkerSettings
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: harshitagrawal.jhansi@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
