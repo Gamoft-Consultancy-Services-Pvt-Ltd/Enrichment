@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     serper_api_key: str = ""
 
+    # Lead ingestion — channel credentials and Meta webhook. Empty defaults keep
+    # tests/local imports working (mirrors Auth0 field pattern).
+    channel_credentials_encryption_key: str = ""
+    meta_app_id: str = ""
+    meta_app_secret: str = ""
+    meta_webhook_verify_token: str = ""
+
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""
     auth0_audience: str = ""

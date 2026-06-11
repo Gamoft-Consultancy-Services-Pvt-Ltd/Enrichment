@@ -15,12 +15,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class LeadSource(StrEnum):
-    """The four sources lead_ingestion accepts leads from."""
+    """All sources lead_ingestion accepts leads from."""
 
     GOOGLE_SHEETS = "GOOGLE_SHEETS"
     EMAIL = "EMAIL"
     WHATSAPP = "WHATSAPP"
     INSTAGRAM = "INSTAGRAM"
+    FACEBOOK = "FACEBOOK"
+    FACEBOOK_LEAD_AD = "FACEBOOK_LEAD_AD"
+    INSTAGRAM_LEAD_AD = "INSTAGRAM_LEAD_AD"
+    FILE_UPLOAD = "FILE_UPLOAD"
 
 
 class LeadBucket(StrEnum):
