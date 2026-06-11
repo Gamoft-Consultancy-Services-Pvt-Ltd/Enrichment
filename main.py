@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from api.lead_ingestion import router as lead_ingestion_router
 from api.me import router as me_router
 from api.middleware import app_error_handler
 from api.onboarding import router as onboarding_router
@@ -26,6 +27,7 @@ app = FastAPI(
 app.add_exception_handler(AppError, app_error_handler)
 app.include_router(me_router)
 app.include_router(onboarding_router)
+app.include_router(lead_ingestion_router, prefix="/channels")
 
 
 @app.get("/health")
