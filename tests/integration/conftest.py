@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # Import every model module so Base.metadata is complete: the truncation below
 # walks Base.metadata.sorted_tables, which resolves cross-table foreign keys.
 import auth.models  # noqa: E402, F401
+import modules.lead_ingestion.db.models  # noqa: E402, F401
+import shared.channels.models  # noqa: E402, F401
 import shared.tenant.models  # noqa: E402, F401
 import shared.tenant_config.models  # noqa: E402, F401
 from core.config import get_settings
