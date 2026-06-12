@@ -65,3 +65,20 @@ async def get_channel_connection(
         select(ChannelConnection).where(ChannelConnection.id == connection_id)
     )
     return result.scalar_one_or_none()
+
+
+async def get_whatsapp_connection_by_phone_number_id(
+    session: AsyncSession, phone_number_id: str
+) -> ChannelConnection | None:
+    """Find an active WhatsApp ChannelConnection by its Meta phone_number_id.
+
+    The phone_number_id is stored inside connection_metadata as a JSON string.
+    """
+    result = await session.execute(
+        select(ChannelConnection).where(
+            ChannelConnection.channel_type == "whatsapp",
+            ChannelConnection.status == "active",
+            ChannelConnection.connection_metadata["phone_number_id"].astext == phone_number_id,
+        )
+    )
+    return result.scalar_one_or_none()

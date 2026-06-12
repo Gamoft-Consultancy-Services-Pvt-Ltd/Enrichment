@@ -1,7 +1,8 @@
 """Source adapters: raw channel payloads → NormalisedChannelEvent.
 
-Sprint 2: file-row adapter only.  WhatsApp / Facebook / email / sheets
-adapters are added in Sprints 3-5.
+Sprint 2: file-row adapter.
+Sprint 3: WhatsApp DM adapter.
+Facebook / email / sheets adapters added in Sprints 3-5.
 """
 
 import hashlib
@@ -12,6 +13,51 @@ from uuid import UUID
 from modules.lead_ingestion.schemas.lead_form import STANDARD_FIELD_MAP
 from modules.lead_ingestion.schemas.normalised_event import NormalisedChannelEvent
 from shared.events.schemas import LeadSource
+
+
+def normalise_whatsapp_message(
+    payload: dict[str, Any],
+    *,
+    tenant_id: UUID,
+    channel_connection_id: UUID | None = None,
+) -> NormalisedChannelEvent:
+    """Convert one WhatsApp webhook message object to NormalisedChannelEvent.
+
+    Expects the full webhook payload (the outermost dict with "object" and
+    "entry" keys).  Extracts the first message from the first entry.
+
+    Meta webhook shape:
+      payload["entry"][0]["changes"][0]["value"]["messages"][0]  → message
+      payload["entry"][0]["changes"][0]["value"]["contacts"][0]  → sender profile
+    """
+    value: dict[str, Any] = payload["entry"][0]["changes"][0]["value"]
+    message: dict[str, Any] = value["messages"][0]
+    contacts: list[dict[str, Any]] = value.get("contacts", [])
+
+    message_id: str = message["id"]  # e.g. "wamid.XXXX"
+    # Meta sends the WA ID as a plain MSISDN (digits only, no +).
+    # Prepend + so the value is E.164 and deduplicates against CSV/other-source leads.
+    _raw_phone: str = message["from"]
+    sender_phone: str = _raw_phone if _raw_phone.startswith("+") else f"+{_raw_phone}"
+
+    full_name: str | None = None
+    if contacts:
+        full_name = contacts[0].get("profile", {}).get("name") or None
+
+    raw_text: str | None = None
+    if message.get("type") == "text":
+        raw_text = message.get("text", {}).get("body") or None
+
+    return NormalisedChannelEvent(
+        tenant_id=tenant_id,
+        channel_connection_id=channel_connection_id,
+        source=LeadSource.WHATSAPP,
+        platform_event_id=message_id,
+        full_name=full_name,
+        phone=sender_phone,
+        raw_text=raw_text,
+        raw_event_json=payload,
+    )
 
 
 def normalise_file_row(
