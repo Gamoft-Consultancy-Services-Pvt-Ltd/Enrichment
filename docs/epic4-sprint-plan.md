@@ -27,8 +27,8 @@ The original spec was written for a multi-team setup involving TypeScript/Innges
 | Sprint | Status | Gate |
 |---|---|---|
 | Sprint 1 — Foundation | ✅ Done | `make test-unit` + migration applies |
-| Sprint 2 — Core Pipeline + File Upload | ⬜ Not started | File upload + idempotency tests pass |
-| Sprint 3 — WhatsApp DM End-to-End | ⬜ Not started | Golden path + noise integration tests pass |
+| Sprint 2 — Core Pipeline + File Upload | ✅ Done | File upload + idempotency tests pass |
+| Sprint 3 — WhatsApp DM End-to-End | ✅ Done | Golden path + noise integration tests pass |
 | Sprint 4 — Meta OAuth + Lead Ads | ⬜ Not started | OAuth state tests + Lead Ad golden path pass |
 | Sprint 5 — Email + Sheets | ⬜ Not started | Email + Sheets integration tests pass |
 | Sprint 6 — Router + Final Wiring | ⬜ Not started | `make ci` fully green |
