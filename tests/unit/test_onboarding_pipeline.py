@@ -52,9 +52,7 @@ async def test_pipeline_happy_path_sets_complete(monkeypatch: pytest.MonkeyPatch
         "modules.tenant_onboarding.pipeline.get_tenant",
         AsyncMock(return_value=_mock_tenant(tenant_id)),
     )
-    monkeypatch.setattr(
-        "modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock
-    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock)
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.search_site_pages",
         AsyncMock(return_value=[]),  # empty → triggers fallback to homepage
@@ -98,9 +96,7 @@ async def test_pipeline_sets_failed_on_exception(monkeypatch: pytest.MonkeyPatch
         AsyncMock(return_value=_mock_tenant(tenant_id)),
     )
     set_status_mock = AsyncMock()
-    monkeypatch.setattr(
-        "modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock
-    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock)
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.search_site_pages",
         AsyncMock(return_value=[]),
@@ -143,9 +139,7 @@ async def test_pipeline_uses_serper_pages_when_available(
         "modules.tenant_onboarding.pipeline.get_tenant",
         AsyncMock(return_value=_mock_tenant(tenant_id)),
     )
-    monkeypatch.setattr(
-        "modules.tenant_onboarding.pipeline.set_onboarding_status", AsyncMock()
-    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.set_onboarding_status", AsyncMock())
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.search_site_pages",
         AsyncMock(return_value=["https://acme.com/about", "https://acme.com/products"]),
@@ -169,9 +163,7 @@ async def test_pipeline_uses_serper_pages_when_available(
     mock_page.text = "<html><body>Acme page content</body></html>"
 
     with patch("modules.tenant_onboarding.pipeline.httpx.AsyncClient") as mock_http:
-        mock_http.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_page
-        )
+        mock_http.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_page)
         await run_pipeline(mock_session, tenant_id)
 
 
@@ -229,9 +221,7 @@ async def test_pipeline_falls_back_to_homepage_when_all_page_fetches_fail(
         "modules.tenant_onboarding.pipeline.get_tenant",
         AsyncMock(return_value=_mock_tenant(tenant_id)),
     )
-    monkeypatch.setattr(
-        "modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock
-    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.set_onboarding_status", set_status_mock)
     # Serper returns two URLs...
     monkeypatch.setattr(
         "modules.tenant_onboarding.pipeline.search_site_pages",

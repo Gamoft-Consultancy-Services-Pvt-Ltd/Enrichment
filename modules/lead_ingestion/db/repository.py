@@ -21,9 +21,7 @@ async def get_lead_by_phone(
     return result.scalar_one_or_none()
 
 
-async def get_lead_by_email(
-    session: AsyncSession, tenant_id: uuid.UUID, email: str
-) -> Lead | None:
+async def get_lead_by_email(session: AsyncSession, tenant_id: uuid.UUID, email: str) -> Lead | None:
     result = await session.execute(
         select(Lead).where(
             Lead.tenant_id == tenant_id,

@@ -16,10 +16,12 @@ from auth.models import User
 from core.config import get_settings
 from core.db import get_session
 from core.queue import get_arq_pool
-from modules.lead_ingestion.db import repository
-from modules.lead_ingestion.exceptions import HmacValidationError
-from modules.lead_ingestion.file_upload_handler import handle_file_upload
-from modules.lead_ingestion.webhook_receiver import validate_signature
+from modules.lead_ingestion.service import (
+    HmacValidationError,
+    get_whatsapp_connection_by_phone_number_id,
+    handle_file_upload,
+    validate_signature,
+)
 
 router = APIRouter()
 
@@ -75,9 +77,7 @@ async def receive_webhook(
         # Malformed or non-message event (e.g. status updates) — ack and discard
         return {"status": "ignored"}
 
-    connection = await repository.get_whatsapp_connection_by_phone_number_id(
-        session, phone_number_id
-    )
+    connection = await get_whatsapp_connection_by_phone_number_id(session, phone_number_id)
     if connection is None:
         # No registered tenant for this phone number — ack to Meta but don't process
         return {"status": "unknown_connection"}

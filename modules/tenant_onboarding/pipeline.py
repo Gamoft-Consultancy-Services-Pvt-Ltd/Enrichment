@@ -86,8 +86,6 @@ async def _fallback_fetch(http: httpx.AsyncClient, url: str) -> str:
 
 def _strip_html(html: str) -> str:
     """Extract readable text from HTML without external dependencies."""
-    text = re.sub(
-        r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE
-    )
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", text).strip()

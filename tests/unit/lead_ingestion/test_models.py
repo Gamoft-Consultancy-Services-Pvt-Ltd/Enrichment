@@ -55,9 +55,7 @@ def test_intake_event_log_table_name() -> None:
 
 def test_intake_event_log_platform_event_id_unique() -> None:
     table_args: tuple[object, ...] = getattr(IntakeEventLog, "__table_args__", ())
-    constraint_names = {
-        getattr(arg, "name", None) for arg in table_args if hasattr(arg, "columns")
-    }
+    constraint_names = {getattr(arg, "name", None) for arg in table_args if hasattr(arg, "columns")}
     assert "uq_intake_event_log_platform_event_id" in constraint_names
 
 

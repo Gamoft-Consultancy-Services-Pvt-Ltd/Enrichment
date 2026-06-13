@@ -2,7 +2,7 @@
 
 Sprint 2: file-row adapter.
 Sprint 3: WhatsApp DM adapter.
-Facebook / email / sheets adapters added in Sprints 3-5.
+Sprint 4: Instagram DM adapter, Facebook DM adapter, Lead Ad adapter.
 """
 
 import hashlib
@@ -97,6 +97,166 @@ def normalise_file_row(
         email=canonical.get("email"),
         location=canonical.get("location"),
         raw_event_json={k: str(v) if v is not None else "" for k, v in row.items()},
+        extra_fields=extra,
+    )
+
+
+def normalise_instagram_dm(
+    payload: dict[str, Any],
+    *,
+    tenant_id: UUID,
+    channel_connection_id: UUID | None = None,
+) -> NormalisedChannelEvent:
+    """Convert one Instagram DM webhook message object to NormalisedChannelEvent.
+
+    Meta Messenger webhook shape for Instagram DMs:
+      payload["entry"][0]["messaging"][0]  → messaging event
+      messaging["sender"]["id"]            → IGSID (Instagram-scoped ID)
+      messaging["message"]["mid"]          → message ID (platform_event_id)
+      messaging["message"]["text"]         → message text (optional)
+
+    Args:
+        payload: Full Instagram DM webhook payload dict.
+        tenant_id: The tenant this connection belongs to.
+        channel_connection_id: Optional ChannelConnection FK.
+
+    Returns:
+        NormalisedChannelEvent with source=LeadSource.INSTAGRAM.
+    """
+    messaging: dict[str, Any] = payload["entry"][0]["messaging"][0]
+    sender_igsid: str = messaging["sender"]["id"]
+    message: dict[str, Any] = messaging.get("message", {})
+    message_id: str = message.get("mid", f"ig-{sender_igsid}")
+    raw_text: str | None = message.get("text") or None
+
+    return NormalisedChannelEvent(
+        tenant_id=tenant_id,
+        channel_connection_id=channel_connection_id,
+        source=LeadSource.INSTAGRAM,
+        platform_event_id=message_id,
+        phone=None,  # Instagram DMs do not expose phone numbers
+        raw_text=raw_text,
+        raw_event_json=payload,
+    )
+
+
+def normalise_facebook_dm(
+    payload: dict[str, Any],
+    *,
+    tenant_id: UUID,
+    channel_connection_id: UUID | None = None,
+) -> NormalisedChannelEvent:
+    """Convert one Facebook Messenger DM webhook message to NormalisedChannelEvent.
+
+    Meta Messenger webhook shape for Facebook Page DMs:
+      payload["entry"][0]["messaging"][0]  → messaging event
+      messaging["sender"]["id"]            → PSID (Page-scoped ID)
+      messaging["message"]["mid"]          → message ID (platform_event_id)
+      messaging["message"]["text"]         → message text (optional)
+
+    Args:
+        payload: Full Facebook DM webhook payload dict.
+        tenant_id: The tenant this connection belongs to.
+        channel_connection_id: Optional ChannelConnection FK.
+
+    Returns:
+        NormalisedChannelEvent with source=LeadSource.FACEBOOK.
+    """
+    messaging: dict[str, Any] = payload["entry"][0]["messaging"][0]
+    sender_psid: str = messaging["sender"]["id"]
+    message: dict[str, Any] = messaging.get("message", {})
+    message_id: str = message.get("mid", f"fb-{sender_psid}")
+    raw_text: str | None = message.get("text") or None
+
+    return NormalisedChannelEvent(
+        tenant_id=tenant_id,
+        channel_connection_id=channel_connection_id,
+        source=LeadSource.FACEBOOK,
+        platform_event_id=message_id,
+        phone=None,  # Facebook DMs do not expose phone numbers in webhook
+        raw_text=raw_text,
+        raw_event_json=payload,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Lead Ad form field name → canonical identity field
+# ---------------------------------------------------------------------------
+
+_LEAD_AD_FIELD_MAP: dict[str, str] = {
+    # name variants
+    "full_name": "full_name",
+    "name": "full_name",
+    "first_name": "full_name",
+    # phone variants
+    "phone_number": "phone",
+    "phone": "phone",
+    "mobile": "phone",
+    # email variants
+    "email": "email",
+    "email_address": "email",
+    # location variants
+    "city": "location",
+    "location": "location",
+    "area": "location",
+}
+
+
+def normalise_lead_ad(
+    leadgen_id: str,
+    form_data: dict[str, Any],
+    *,
+    tenant_id: UUID,
+    channel_connection_id: UUID | None = None,
+    source: LeadSource = LeadSource.FACEBOOK_LEAD_AD,
+) -> NormalisedChannelEvent:
+    """Convert Meta Lead Ad form data to NormalisedChannelEvent.
+
+    The *form_data* is the response from the Graph API
+    GET /{leadgen_id}?fields=field_data, which has the shape:
+      {"id": "...", "field_data": [{"name": "full_name", "values": ["..."]}]}
+
+    platform_event_id is set to "leadgen-{leadgen_id}" for idempotency.
+
+    Args:
+        leadgen_id: The leadgen ID from the webhook (used as idempotency key).
+        form_data: The Graph API response dict containing 'field_data'.
+        tenant_id: The tenant this connection belongs to.
+        channel_connection_id: Optional ChannelConnection FK.
+        source: LeadSource.FACEBOOK_LEAD_AD or INSTAGRAM_LEAD_AD.
+
+    Returns:
+        NormalisedChannelEvent with source set to *source*.
+    """
+    canonical: dict[str, str] = {}
+    extra: dict[str, Any] = {}
+
+    for field in form_data.get("field_data", []):
+        field_name: str = field.get("name", "")
+        values: list[str] = field.get("values", [])
+        value = values[0] if values else ""
+        if not value:
+            continue
+        target = _LEAD_AD_FIELD_MAP.get(field_name.lower())
+        if target is not None and target not in canonical:
+            canonical[target] = value
+        elif target is None:
+            extra[field_name] = value
+
+    # Build a synthetic full_name from first_name if full_name wasn't mapped
+    if "full_name" not in canonical and "first_name" in extra:
+        canonical["full_name"] = extra.pop("first_name")
+
+    return NormalisedChannelEvent(
+        tenant_id=tenant_id,
+        channel_connection_id=channel_connection_id,
+        source=source,
+        platform_event_id=f"leadgen-{leadgen_id}",
+        full_name=canonical.get("full_name"),
+        phone=canonical.get("phone"),
+        email=canonical.get("email"),
+        location=canonical.get("location"),
+        raw_event_json=form_data,
         extra_fields=extra,
     )
 

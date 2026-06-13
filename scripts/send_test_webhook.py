@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 import httpx
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from core.config import get_settings
@@ -55,9 +55,7 @@ async def _show_db_state(platform_event_id: str) -> None:
     async with factory() as session:
         log = (
             await session.execute(
-                select(IntakeEventLog).where(
-                    IntakeEventLog.platform_event_id == platform_event_id
-                )
+                select(IntakeEventLog).where(IntakeEventLog.platform_event_id == platform_event_id)
             )
         ).scalar_one_or_none()
 
