@@ -25,10 +25,11 @@ from modules.lead_ingestion.db.models import Lead
 from modules.lead_ingestion.exceptions import ChannelApiError, PreFlightHaltError
 from modules.lead_ingestion.normaliser import normalise_lead_ad
 from modules.lead_ingestion.pipeline import create_terminal_lead, run_capture
+from core.config import get_settings
 from modules.lead_ingestion.pre_flight import check_pre_flight
 from shared.events.schemas import LeadReceived, LeadSource
 
-_META_GRAPH_BASE = "https://graph.facebook.com/v19.0"
+_META_GRAPH_BASE = f"https://graph.facebook.com/{get_settings().meta_graph_api_version}"
 _RACE_CONDITION_CODE = 100
 _RETRY_DELAY_SECONDS = 3
 
@@ -56,7 +57,9 @@ async def _fetch_lead_form_data(
     import httpx
 
     url = f"{_META_GRAPH_BASE}/{leadgen_id}"
-    params: dict[str, str] = {"fields": "field_data"}
+    params: dict[str, str] = {
+        "fields": "id,created_time,ad_id,form_id,field_data,custom_disclaimer_responses"
+    }
     if access_token:
         params["access_token"] = access_token
 
