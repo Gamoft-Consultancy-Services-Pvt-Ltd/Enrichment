@@ -82,7 +82,6 @@ async def test_stage2_returns_all_classifications(classification: str) -> None:
     assert result.classification == FilterClassification(classification)
 
 
-
 async def test_stage2_extracted_fields_propagated() -> None:
     groq_response = {
         "classification": "LEAD",

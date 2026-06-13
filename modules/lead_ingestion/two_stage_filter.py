@@ -20,8 +20,20 @@ from modules.lead_ingestion.schemas.filter_result import FilterClassification, F
 # Single greetings / filler words that contain zero lead signal
 _STAGE1_NOISE_WORDS: frozenset[str] = frozenset(
     {
-        "hi", "hello", "hey", "ok", "okay", "thanks", "thank",
-        "k", "yes", "no", "bye", "good", "fine", "sure",
+        "hi",
+        "hello",
+        "hey",
+        "ok",
+        "okay",
+        "thanks",
+        "thank",
+        "k",
+        "yes",
+        "no",
+        "bye",
+        "good",
+        "fine",
+        "sure",
     }
 )
 

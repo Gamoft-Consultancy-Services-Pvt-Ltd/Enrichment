@@ -29,9 +29,7 @@ async def find_duplicate(
 ) -> Lead | None:
     """Return an existing Lead matching this event's identity, or None."""
     if event.phone:
-        lead = await repository.get_lead_by_phone(
-            session, tenant_id, normalise_phone(event.phone)
-        )
+        lead = await repository.get_lead_by_phone(session, tenant_id, normalise_phone(event.phone))
         if lead is not None:
             return lead
 

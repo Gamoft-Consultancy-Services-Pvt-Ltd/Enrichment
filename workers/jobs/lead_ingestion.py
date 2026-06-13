@@ -6,17 +6,19 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from core.config import get_settings
-from modules.lead_ingestion.db.models import Lead
-from modules.lead_ingestion.exceptions import PreFlightHaltError
-from modules.lead_ingestion.normaliser import normalise_file_row, normalise_whatsapp_message
-from modules.lead_ingestion.pipeline import run_capture, run_capture_message
-from modules.lead_ingestion.pre_flight import check_pre_flight
+from modules.lead_ingestion.service import (
+    Lead,
+    PreFlightHaltError,
+    check_pre_flight,
+    normalise_file_row,
+    normalise_whatsapp_message,
+    run_capture,
+    run_capture_message,
+)
 from shared.events.schemas import LeadSource
 
 
-async def run_lead_capture(
-    ctx: dict[str, object], payload_dict: dict[str, Any]
-) -> None:
+async def run_lead_capture(ctx: dict[str, object], payload_dict: dict[str, Any]) -> None:
     """Process a single message-based webhook event (WhatsApp, etc.)."""
     tenant_id = UUID(cast(str, payload_dict["tenant_id"]))
     channel_connection_id_str = cast(str | None, payload_dict.get("channel_connection_id"))
@@ -37,9 +39,7 @@ async def run_lead_capture(
     await engine.dispose()
 
 
-async def run_lead_capture_batch(
-    ctx: dict[str, object], payload_dict: dict[str, Any]
-) -> None:
+async def run_lead_capture_batch(ctx: dict[str, object], payload_dict: dict[str, Any]) -> None:
     """Process a batch of file-upload rows.
 
     Pre-flight is checked once; if the tenant has no active config the whole

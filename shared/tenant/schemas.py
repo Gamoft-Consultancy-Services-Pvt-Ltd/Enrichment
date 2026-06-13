@@ -21,10 +21,10 @@ class BusinessType(StrEnum):
 class TenantStatus(StrEnum):
     """The tenant lifecycle. 'Onboarding' is simply CREATED."""
 
-    CREATED   = "CREATED"
-    ACTIVE    = "ACTIVE"
+    CREATED = "CREATED"
+    ACTIVE = "ACTIVE"
     SUSPENDED = "SUSPENDED"
-    CHURNED   = "CHURNED"
+    CHURNED = "CHURNED"
 
 
 class OnboardingStatus(StrEnum):
@@ -34,10 +34,10 @@ class OnboardingStatus(StrEnum):
     cannot import from modules/.
     """
 
-    PENDING  = "PENDING"   # job queued, not yet picked up
-    RUNNING  = "RUNNING"   # pipeline executing
+    PENDING = "PENDING"  # job queued, not yet picked up
+    RUNNING = "RUNNING"  # pipeline executing
     COMPLETE = "COMPLETE"  # tenant_config ACTIVE, tenant ACTIVE
-    FAILED   = "FAILED"    # pipeline crashed; tenant can retry
+    FAILED = "FAILED"  # pipeline crashed; tenant can retry
 
 
 class TenantCreate(BaseModel):
