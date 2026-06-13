@@ -88,7 +88,7 @@ async def run_capture(
     )
 
 
-async def _create_terminal_lead(
+async def create_terminal_lead(
     session: AsyncSession,
     event: NormalisedChannelEvent,
     pipeline_stage: str,
@@ -102,9 +102,7 @@ async def _create_terminal_lead(
     """
     log_id = await intake_logger.reserve_event_slot(session, event)
     if log_id is None:
-        existing = await repository.get_lead_by_platform_event_id(
-            session, event.platform_event_id
-        )
+        existing = await repository.get_lead_by_platform_event_id(session, event.platform_event_id)
         assert existing is not None, (
             f"IntakeEventLog exists for {event.platform_event_id!r} but no linked lead"
         )
@@ -148,10 +146,10 @@ async def run_capture_message(
 
     # 2. Terminal filter branches
     if filter_result.classification == FilterClassification.NOISE:
-        return await _create_terminal_lead(session, event, "insufficient_signal")
+        return await create_terminal_lead(session, event, "insufficient_signal")
 
     if filter_result.classification == FilterClassification.EXISTING_CUSTOMER:
-        return await _create_terminal_lead(session, event, "existing_customer")
+        return await create_terminal_lead(session, event, "existing_customer")
 
     # LEAD or UNCLEAR: calibration rule (CLAUDE.md) routes UNCLEAR as LEAD.
     # Merge any fields the LLM extracted from the message text.
@@ -176,7 +174,7 @@ async def run_capture_message(
     try:
         await check_pre_flight(session, enriched.tenant_id)
     except PreFlightHaltError as exc:
-        return await _create_terminal_lead(
+        return await create_terminal_lead(
             session, enriched, "pre_flight_blocked", block_reason=str(exc)
         )
 

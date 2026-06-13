@@ -130,9 +130,5 @@ async def test_whatsapp_dm_redelivery_is_noop(session: AsyncSession) -> None:
     assert lead_first.id == lead_second.id
     assert lr_second is None
 
-    count = (
-        await session.execute(
-            select(Lead).where(Lead.tenant_id == tenant_id)
-        )
-    ).scalars().all()
+    count = (await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))).scalars().all()
     assert len(count) == 1

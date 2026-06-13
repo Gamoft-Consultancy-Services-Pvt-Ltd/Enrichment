@@ -113,6 +113,7 @@ async def client(
                 f"{_NS}role": "TENANT",
             }
         from core.exceptions import AuthenticationError
+
         raise AuthenticationError("bad token")
 
     monkeypatch.setattr(token_module, "verify_token", fake_verify)
@@ -156,6 +157,7 @@ async def client_no_config(
                 f"{_NS}role": "TENANT",
             }
         from core.exceptions import AuthenticationError
+
         raise AuthenticationError("bad token")
 
     monkeypatch.setattr(token_module, "verify_token", fake_verify)
@@ -219,6 +221,7 @@ async def client_empty_signals(
                 f"{_NS}role": "TENANT",
             }
         from core.exceptions import AuthenticationError
+
         raise AuthenticationError("bad token")
 
     monkeypatch.setattr(token_module, "verify_token", fake_verify)
@@ -259,10 +262,14 @@ async def test_csv_standard_headers_map_to_canonical_fields(
     assert len(body["lead_ids"]) == 3
 
     leads = (
-        await session.execute(
-            select(Lead).where(Lead.tenant_id == tenant_id).order_by(Lead.created_at)
+        (
+            await session.execute(
+                select(Lead).where(Lead.tenant_id == tenant_id).order_by(Lead.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     alice = next(ld for ld in leads if ld.full_name == "Alice Sharma")
     assert alice.phone == "+919876543210"
@@ -287,13 +294,17 @@ async def test_identity_less_row_creates_blocked_lead(
     assert resp.status_code == 200
 
     blocked = (
-        await session.execute(
-            select(Lead).where(
-                Lead.tenant_id == tenant_id,
-                Lead.pre_flight_block_reason == "insufficient_identity_fields",
+        (
+            await session.execute(
+                select(Lead).where(
+                    Lead.tenant_id == tenant_id,
+                    Lead.pre_flight_block_reason == "insufficient_identity_fields",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(blocked) == 1
     assert blocked[0].pipeline_stage == "pre_flight_blocked"
 

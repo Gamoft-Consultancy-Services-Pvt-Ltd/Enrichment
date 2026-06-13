@@ -19,3 +19,7 @@ class ChannelApiError(Exception):
 
 class FilterClientError(Exception):
     """The two-stage filter (Groq classify_message) returned an unexpected result."""
+
+
+class OAuthStateError(Exception):
+    """OAuth state parameter is missing, malformed, or HMAC verification failed."""

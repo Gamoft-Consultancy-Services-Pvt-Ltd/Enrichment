@@ -86,6 +86,6 @@ async def test_noise_redelivery_is_noop(session: AsyncSession) -> None:
     assert lr_second is None
 
     all_leads = (
-        await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))
-    ).scalars().all()
+        (await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))).scalars().all()
+    )
     assert len(all_leads) == 1
