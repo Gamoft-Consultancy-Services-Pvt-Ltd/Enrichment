@@ -80,3 +80,23 @@ async def get_whatsapp_connection_by_phone_number_id(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_connection_by_page_or_ig_account_id(
+    session: AsyncSession, account_id: str
+) -> ChannelConnection | None:
+    """Find an active Facebook or Instagram ChannelConnection by page_id or ig_account_id.
+
+    Used to route 'page' (Facebook DMs + Lead Ads) and 'instagram' webhook events.
+    The IDs are stored inside connection_metadata; a GIN index on that column
+    makes this lookup efficient.
+    """
+    result = await session.execute(
+        select(ChannelConnection).where(
+            ChannelConnection.status == "active",
+            ChannelConnection.channel_type.in_(["facebook", "instagram"]),
+            (ChannelConnection.connection_metadata["page_id"].astext == account_id)
+            | (ChannelConnection.connection_metadata["ig_account_id"].astext == account_id),
+        )
+    )
+    return result.scalar_one_or_none()
