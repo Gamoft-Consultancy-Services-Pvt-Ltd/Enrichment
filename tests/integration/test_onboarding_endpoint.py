@@ -1,4 +1,4 @@
-"""Integration tests for POST /onboarding.
+"""Integration tests for POST /onboarding and related KYB endpoints.
 
 Drives the ASGI app with httpx.AsyncClient on the test's event loop and overrides
 get_session to use the truncating `session` fixture — so the endpoint and the
@@ -28,6 +28,7 @@ _BUSINESS = {
     "primary_contact_email": "ada@acme.com",
     "business_type": "B2B",
     "website_url": "https://acme.com",
+    "gstin": "29ABCDE1234F1Z5",
     "timezone": "UTC",
     "language_preference": "en",
 }
@@ -115,9 +116,49 @@ async def test_onboarding_returns_pending_onboarding_status(client: AsyncClient)
     assert resp.json()["onboarding_status"] == "PENDING"
 
 
-async def test_onboarding_enqueues_pipeline_job(client: AsyncClient) -> None:
+async def test_onboarding_does_not_enqueue_before_verification(client: AsyncClient) -> None:
     mock_pool = app.dependency_overrides[get_arq_pool]()
     resp = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
     assert resp.status_code == 200
+    assert resp.json()["kyb_status"] == "PENDING"
+    mock_pool.enqueue_job.assert_not_awaited()
+
+
+async def test_verify_otp_verifies_and_enqueues_pipeline(client: AsyncClient) -> None:
+    mock_pool = app.dependency_overrides[get_arq_pool]()
+    await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
+
+    resp = await client.post(
+        "/onboarding/verify-otp", headers=_auth(), json={"otp": "123456"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["kyb_status"] == "VERIFIED"
     mock_pool.enqueue_job.assert_awaited_once()
     assert mock_pool.enqueue_job.call_args.args[0] == "run_onboarding_pipeline"
+
+
+async def test_wrong_otp_three_times_fails_then_restart(client: AsyncClient) -> None:
+    await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
+
+    for _ in range(3):
+        bad = await client.post(
+            "/onboarding/verify-otp", headers=_auth(), json={"otp": "000000"}
+        )
+        assert bad.status_code == 200
+    assert bad.json()["kyb_status"] == "FAILED"
+
+    restart = await client.post("/onboarding/restart-kyb", headers=_auth(), json={})
+    assert restart.status_code == 200
+    assert restart.json()["kyb_status"] == "PENDING"
+
+    ok = await client.post(
+        "/onboarding/verify-otp", headers=_auth(), json={"otp": "123456"}
+    )
+    assert ok.json()["kyb_status"] == "VERIFIED"
+
+
+async def test_resend_otp_returns_pending(client: AsyncClient) -> None:
+    await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
+    resp = await client.post("/onboarding/resend-otp", headers=_auth(), json={})
+    assert resp.status_code == 200
+    assert resp.json()["kyb_status"] == "PENDING"

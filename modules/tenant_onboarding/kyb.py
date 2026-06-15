@@ -31,7 +31,7 @@ async def submit_otp(session: AsyncSession, tenant_id: UUID, otp: str) -> KybSta
     VERIFIED on success; PENDING while attempts remain; FAILED at the cap.
     """
     tenant = await tenant_service.get_tenant(session, tenant_id)
-    if tenant.kyb_status is not KybStatus.PENDING:
+    if tenant.kyb_status != KybStatus.PENDING:
         raise ConflictError(f"Tenant {tenant_id} KYB is not pending")
     if tenant.kyb_txn_ref is None:
         raise ConflictError(f"Tenant {tenant_id} has no active OTP")
@@ -51,7 +51,7 @@ async def submit_otp(session: AsyncSession, tenant_id: UUID, otp: str) -> KybSta
 async def resend_otp(session: AsyncSession, tenant_id: UUID) -> None:
     """Send a fresh OTP for the same GSTIN, capped at MAX_RESENDS."""
     tenant = await tenant_service.get_tenant(session, tenant_id)
-    if tenant.kyb_status is not KybStatus.PENDING:
+    if tenant.kyb_status != KybStatus.PENDING:
         raise ConflictError(f"Tenant {tenant_id} KYB is not pending")
     if tenant.kyb_resends >= MAX_RESENDS:
         raise ConflictError(f"Tenant {tenant_id} OTP resend limit reached")
@@ -65,7 +65,7 @@ async def restart_kyb(
 ) -> None:
     """Restart KYB for a FAILED tenant: reset counters, optional new GSTIN, fresh OTP."""
     tenant = await tenant_service.get_tenant(session, tenant_id)
-    if tenant.kyb_status is not KybStatus.FAILED:
+    if tenant.kyb_status != KybStatus.FAILED:
         raise ConflictError(f"Tenant {tenant_id} KYB is not failed")
     await tenant_service.reset_kyb(session, tenant_id, gstin)
     refreshed = await tenant_service.get_tenant(session, tenant_id)

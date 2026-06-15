@@ -1,9 +1,11 @@
-"""The /onboarding endpoint — submits business info, creates tenant, starts pipeline."""
+"""The /onboarding endpoints — create tenant, run GST-OTP KYB, then start pipeline."""
 
 from typing import Annotated
+from uuid import UUID
 
 from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
@@ -12,10 +14,24 @@ from auth.service import set_user_tenant
 from core.db import get_session
 from core.exceptions import ConflictError
 from core.queue import get_arq_pool
-from shared.tenant.schemas import TenantCreate, TenantRead
-from shared.tenant.service import create_tenant
+from modules.tenant_onboarding import kyb
+from shared.tenant.schemas import KybStatus, TenantCreate, TenantRead, normalize_gstin
+from shared.tenant.service import create_tenant, get_tenant
 
 router = APIRouter()
+
+
+class OtpVerifyRequest(BaseModel):
+    otp: str
+
+
+class RestartKybRequest(BaseModel):
+    gstin: str | None = None
+
+    @field_validator("gstin")
+    @classmethod
+    def _normalize(cls, value: str | None) -> str | None:
+        return None if value is None else normalize_gstin(value)
 
 
 @router.post("/onboarding", response_model=TenantRead)
@@ -23,14 +39,63 @@ async def onboard(
     data: TenantCreate,
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
-    arq_pool: Annotated[ArqRedis, Depends(get_arq_pool)],
 ) -> TenantRead:
-    """Create the current user's tenant from their business info, then start the pipeline."""
+    """Create the tenant in KYB_PENDING and send the first GST OTP. No pipeline yet."""
     if user.tenant_id is not None:
         raise ConflictError("User is already onboarded to a tenant")
-    # Two commits (create_tenant, then set_user_tenant); a crash between them can
-    # leave an orphan Tenant. Accepted for this slice.
     tenant = await create_tenant(session, data)
     await set_user_tenant(session, user, tenant.id)
-    await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant.id))
-    return TenantRead.model_validate(tenant)
+    await kyb.start_verification(session, tenant.id)
+    refreshed = await get_tenant(session, tenant.id)
+    await session.refresh(refreshed)
+    return TenantRead.model_validate(refreshed)
+
+
+@router.post("/onboarding/verify-otp", response_model=TenantRead)
+async def verify_otp(
+    body: OtpVerifyRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    arq_pool: Annotated[ArqRedis, Depends(get_arq_pool)],
+) -> TenantRead:
+    """Verify the OTP; on success, enqueue the onboarding pipeline."""
+    tenant_id = _require_tenant(user)
+    result = await kyb.submit_otp(session, tenant_id, body.otp)
+    if result is KybStatus.VERIFIED:
+        await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant_id))
+    refreshed = await get_tenant(session, tenant_id)
+    await session.refresh(refreshed)
+    return TenantRead.model_validate(refreshed)
+
+
+@router.post("/onboarding/resend-otp", response_model=TenantRead)
+async def resend_otp(
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TenantRead:
+    """Send a fresh OTP for the same GSTIN (capped)."""
+    tenant_id = _require_tenant(user)
+    await kyb.resend_otp(session, tenant_id)
+    refreshed = await get_tenant(session, tenant_id)
+    await session.refresh(refreshed)
+    return TenantRead.model_validate(refreshed)
+
+
+@router.post("/onboarding/restart-kyb", response_model=TenantRead)
+async def restart_kyb(
+    body: RestartKybRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TenantRead:
+    """Restart KYB for a FAILED tenant, optionally with a corrected GSTIN."""
+    tenant_id = _require_tenant(user)
+    await kyb.restart_kyb(session, tenant_id, body.gstin)
+    refreshed = await get_tenant(session, tenant_id)
+    await session.refresh(refreshed)
+    return TenantRead.model_validate(refreshed)
+
+
+def _require_tenant(user: User) -> UUID:
+    if user.tenant_id is None:
+        raise ConflictError("User has no tenant to verify")
+    return user.tenant_id
