@@ -6,13 +6,15 @@ shared.tenant.schemas. Enums are defined in schemas.py and reused here.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, String, Uuid, func
+from sqlalchemy import DateTime, Integer, String, Uuid, func
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
-from shared.tenant.schemas import BusinessType, OnboardingStatus, TenantStatus
+from shared.tenant.schemas import BusinessType, KybStatus, OnboardingStatus, TenantStatus
 
 
 class Tenant(Base):
@@ -28,6 +30,17 @@ class Tenant(Base):
         SQLEnum(BusinessType, name="business_type"), nullable=False
     )
     website_url: Mapped[str] = mapped_column(String, nullable=False)
+    gstin: Mapped[str] = mapped_column(String, nullable=False)
+    kyb_status: Mapped[KybStatus] = mapped_column(
+        String, nullable=False, default=KybStatus.PENDING
+    )
+    kyb_company_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    kyb_txn_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    kyb_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    kyb_resends: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    kyb_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     onboarding_status: Mapped[OnboardingStatus] = mapped_column(
         String, nullable=False, default=OnboardingStatus.PENDING
     )

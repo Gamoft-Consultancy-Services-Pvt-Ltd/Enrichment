@@ -17,6 +17,13 @@ def test_tenant_has_the_expected_columns() -> None:
         "primary_contact_email",
         "business_type",
         "website_url",
+        "gstin",
+        "kyb_status",
+        "kyb_company_data",
+        "kyb_txn_ref",
+        "kyb_attempts",
+        "kyb_resends",
+        "kyb_verified_at",
         "onboarding_status",
         "status",
         "timezone",
@@ -25,6 +32,22 @@ def test_tenant_has_the_expected_columns() -> None:
         "updated_at",
         "activated_at",
     }
+
+
+def test_tenant_has_kyb_columns() -> None:
+    from shared.tenant.models import Tenant
+
+    cols = Tenant.__table__.columns
+    for name in (
+        "gstin",
+        "kyb_status",
+        "kyb_company_data",
+        "kyb_txn_ref",
+        "kyb_attempts",
+        "kyb_resends",
+        "kyb_verified_at",
+    ):
+        assert name in cols
 
 
 def test_id_is_primary_key_and_activated_at_is_nullable() -> None:
