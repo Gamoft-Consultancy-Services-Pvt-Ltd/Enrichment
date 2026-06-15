@@ -43,6 +43,10 @@ async def onboard(
     """Create the tenant in KYB_PENDING and send the first GST OTP. No pipeline yet."""
     if user.tenant_id is not None:
         raise ConflictError("User is already onboarded to a tenant")
+    # Three sequential commits (create_tenant → set_user_tenant → start_verification).
+    # A crash after set_user_tenant but before start_verification leaves the tenant
+    # PENDING with no kyb_txn_ref; recovery is POST /onboarding/resend-otp (which only
+    # requires PENDING status, not a txn_ref). Accepted for this slice.
     tenant = await create_tenant(session, data)
     await set_user_tenant(session, user, tenant.id)
     await kyb.start_verification(session, tenant.id)
@@ -64,6 +68,10 @@ async def verify_otp(
     tenant_id = _require_tenant(user)
     result = await kyb.submit_otp(session, tenant_id, body.otp)
     if result == KybStatus.VERIFIED:
+        # KYB is already committed VERIFIED. If enqueue fails here (e.g. Redis down),
+        # the tenant is VERIFIED but the pipeline never starts, and the KYB endpoints
+        # can't self-recover it (not PENDING, not FAILED) — needs admin reconciliation.
+        # A startup VERIFIED-without-pipeline sweep is a deferred follow-up.
         await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant_id))
     refreshed = await get_tenant(session, tenant_id)
     await session.refresh(refreshed)
