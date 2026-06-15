@@ -116,6 +116,14 @@ def test_tenant_create_rejects_missing_required_field() -> None:
         )
 
 
+def test_tenant_read_exposes_kyb_fields() -> None:
+    from shared.tenant.schemas import TenantRead
+
+    fields = TenantRead.model_fields
+    assert "kyb_status" in fields
+    assert "gstin" in fields
+
+
 def test_tenant_read_builds_from_orm_like_object() -> None:
     obj = SimpleNamespace(
         id=uuid4(),
@@ -124,7 +132,9 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
         primary_contact_email="asha@gamoft.com",
         business_type=BusinessType.B2B,
         website_url="https://gamoft.com",
+        gstin="29ABCDE1234F1Z5",
         onboarding_status=OnboardingStatus.PENDING,
+        kyb_status=KybStatus.PENDING,
         status=TenantStatus.CREATED,
         timezone="UTC",
         language_preference="en",

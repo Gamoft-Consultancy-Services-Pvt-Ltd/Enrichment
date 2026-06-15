@@ -88,8 +88,10 @@ class TenantRead(BaseModel):
     primary_contact_name: str
     primary_contact_email: EmailStr
     business_type: BusinessType
+    gstin: str
     website_url: str
     onboarding_status: OnboardingStatus
+    kyb_status: KybStatus
     status: TenantStatus
     timezone: str
     language_preference: str
