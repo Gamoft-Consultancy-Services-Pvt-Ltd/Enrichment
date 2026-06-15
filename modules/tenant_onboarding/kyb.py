@@ -9,21 +9,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import clients.surepass_client as surepass_client
-import shared.tenant.service as tenant_service
+from clients import surepass_client
 from core.exceptions import ConflictError
+from shared.tenant import service as tenant_service
 from shared.tenant.schemas import KybStatus
-
-__all__ = [
-    "MAX_ATTEMPTS",
-    "MAX_RESENDS",
-    "surepass_client",
-    "tenant_service",
-    "start_verification",
-    "submit_otp",
-    "resend_otp",
-    "restart_kyb",
-]
 
 MAX_ATTEMPTS = 3
 MAX_RESENDS = 3

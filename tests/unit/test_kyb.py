@@ -1,4 +1,9 @@
-"""Unit tests for KYB orchestration — service + Surepass client are mocked."""
+"""Unit tests for KYB orchestration — service + Surepass client are mocked.
+
+Patches target the canonical source modules (`shared.tenant.service`,
+`clients.surepass_client`); kyb.py calls through those module objects, so this
+intercepts its calls without reaching into kyb's own namespace.
+"""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -11,6 +16,9 @@ from modules.tenant_onboarding import kyb
 from shared.tenant.schemas import KybStatus
 
 _GSTIN = "29ABCDE1234F1Z5"
+
+_SERVICE = "shared.tenant.service"
+_CLIENT = "clients.surepass_client"
 
 
 def _tenant(**over: object) -> SimpleNamespace:
@@ -29,9 +37,9 @@ async def test_start_verification_sends_and_stores_txn() -> None:
     session = AsyncMock()
     tid = uuid4()
     with (
-        patch.object(kyb.tenant_service, "get_tenant", AsyncMock(return_value=_tenant())),
-        patch.object(kyb.surepass_client, "send_gst_otp", AsyncMock(return_value="txn-9")),
-        patch.object(kyb.tenant_service, "store_kyb_txn", AsyncMock()) as store,
+        patch(f"{_SERVICE}.get_tenant", AsyncMock(return_value=_tenant())),
+        patch(f"{_CLIENT}.send_gst_otp", AsyncMock(return_value="txn-9")),
+        patch(f"{_SERVICE}.store_kyb_txn", AsyncMock()) as store,
     ):
         await kyb.start_verification(session, tid)
     store.assert_awaited_once_with(session, tid, "txn-9")
@@ -42,9 +50,9 @@ async def test_submit_otp_verified() -> None:
     tid = uuid4()
     company = {"gstin": _GSTIN, "legal_name": "ACME"}
     with (
-        patch.object(kyb.tenant_service, "get_tenant", AsyncMock(return_value=_tenant())),
-        patch.object(kyb.surepass_client, "verify_gst_otp", AsyncMock(return_value=company)),
-        patch.object(kyb.tenant_service, "mark_kyb_verified", AsyncMock()) as verified,
+        patch(f"{_SERVICE}.get_tenant", AsyncMock(return_value=_tenant())),
+        patch(f"{_CLIENT}.verify_gst_otp", AsyncMock(return_value=company)),
+        patch(f"{_SERVICE}.mark_kyb_verified", AsyncMock()) as verified,
     ):
         result = await kyb.submit_otp(session, tid, "123456")
     assert result == KybStatus.VERIFIED
@@ -55,10 +63,10 @@ async def test_submit_otp_wrong_under_cap_stays_pending() -> None:
     session = AsyncMock()
     tid = uuid4()
     with (
-        patch.object(kyb.tenant_service, "get_tenant", AsyncMock(return_value=_tenant())),
-        patch.object(kyb.surepass_client, "verify_gst_otp", AsyncMock(return_value=None)),
-        patch.object(kyb.tenant_service, "bump_kyb_attempts", AsyncMock(return_value=1)),
-        patch.object(kyb.tenant_service, "mark_kyb_failed", AsyncMock()) as failed,
+        patch(f"{_SERVICE}.get_tenant", AsyncMock(return_value=_tenant())),
+        patch(f"{_CLIENT}.verify_gst_otp", AsyncMock(return_value=None)),
+        patch(f"{_SERVICE}.bump_kyb_attempts", AsyncMock(return_value=1)),
+        patch(f"{_SERVICE}.mark_kyb_failed", AsyncMock()) as failed,
     ):
         result = await kyb.submit_otp(session, tid, "000000")
     assert result == KybStatus.PENDING
@@ -69,10 +77,10 @@ async def test_submit_otp_wrong_at_cap_fails() -> None:
     session = AsyncMock()
     tid = uuid4()
     with (
-        patch.object(kyb.tenant_service, "get_tenant", AsyncMock(return_value=_tenant())),
-        patch.object(kyb.surepass_client, "verify_gst_otp", AsyncMock(return_value=None)),
-        patch.object(kyb.tenant_service, "bump_kyb_attempts", AsyncMock(return_value=3)),
-        patch.object(kyb.tenant_service, "mark_kyb_failed", AsyncMock()) as failed,
+        patch(f"{_SERVICE}.get_tenant", AsyncMock(return_value=_tenant())),
+        patch(f"{_CLIENT}.verify_gst_otp", AsyncMock(return_value=None)),
+        patch(f"{_SERVICE}.bump_kyb_attempts", AsyncMock(return_value=3)),
+        patch(f"{_SERVICE}.mark_kyb_failed", AsyncMock()) as failed,
     ):
         result = await kyb.submit_otp(session, tid, "000000")
     assert result == KybStatus.FAILED
@@ -81,8 +89,8 @@ async def test_submit_otp_wrong_at_cap_fails() -> None:
 
 async def test_submit_otp_not_pending_conflicts() -> None:
     session = AsyncMock()
-    with patch.object(
-        kyb.tenant_service, "get_tenant",
+    with patch(
+        f"{_SERVICE}.get_tenant",
         AsyncMock(return_value=_tenant(kyb_status=KybStatus.VERIFIED)),
     ):
         with pytest.raises(ConflictError):
@@ -91,9 +99,19 @@ async def test_submit_otp_not_pending_conflicts() -> None:
 
 async def test_resend_over_cap_conflicts() -> None:
     session = AsyncMock()
-    with patch.object(
-        kyb.tenant_service, "get_tenant",
+    with patch(
+        f"{_SERVICE}.get_tenant",
         AsyncMock(return_value=_tenant(kyb_resends=3)),
+    ):
+        with pytest.raises(ConflictError):
+            await kyb.resend_otp(session, uuid4())
+
+
+async def test_resend_not_pending_conflicts() -> None:
+    session = AsyncMock()
+    with patch(
+        f"{_SERVICE}.get_tenant",
+        AsyncMock(return_value=_tenant(kyb_status=KybStatus.FAILED)),
     ):
         with pytest.raises(ConflictError):
             await kyb.resend_otp(session, uuid4())
@@ -101,8 +119,8 @@ async def test_resend_over_cap_conflicts() -> None:
 
 async def test_restart_requires_failed_status() -> None:
     session = AsyncMock()
-    with patch.object(
-        kyb.tenant_service, "get_tenant",
+    with patch(
+        f"{_SERVICE}.get_tenant",
         AsyncMock(return_value=_tenant(kyb_status=KybStatus.PENDING)),
     ):
         with pytest.raises(ConflictError):
