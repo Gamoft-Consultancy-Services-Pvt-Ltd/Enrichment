@@ -46,6 +46,8 @@ async def onboard(
     tenant = await create_tenant(session, data)
     await set_user_tenant(session, user, tenant.id)
     await kyb.start_verification(session, tenant.id)
+    # kyb committed an UPDATE, expiring server-computed columns (updated_at); refresh
+    # repopulates them so the response can be serialized without an async lazy-load.
     refreshed = await get_tenant(session, tenant.id)
     await session.refresh(refreshed)
     return TenantRead.model_validate(refreshed)
@@ -61,7 +63,7 @@ async def verify_otp(
     """Verify the OTP; on success, enqueue the onboarding pipeline."""
     tenant_id = _require_tenant(user)
     result = await kyb.submit_otp(session, tenant_id, body.otp)
-    if result is KybStatus.VERIFIED:
+    if result == KybStatus.VERIFIED:
         await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant_id))
     refreshed = await get_tenant(session, tenant_id)
     await session.refresh(refreshed)
