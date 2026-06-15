@@ -45,6 +45,7 @@ async def test_tenant_user_links_to_tenant(session: AsyncSession) -> None:
             primary_contact_email="ada@acme.com",
             business_type=BusinessType.B2B,
             website_url="https://acme.com",  # type: ignore[arg-type]
+            gstin="29ABCDE1234F1Z5",
         ),
     )
     principal = Principal(
@@ -64,6 +65,7 @@ async def test_second_user_for_same_tenant_violates_unique(session: AsyncSession
             primary_contact_email="ada@acme.com",
             business_type=BusinessType.B2B,
             website_url="https://acme.com",  # type: ignore[arg-type]
+            gstin="29ABCDE1234F1Z5",
         ),
     )
     await get_or_create_user(
@@ -91,6 +93,7 @@ async def test_existing_tenant_link_is_preserved_when_token_lacks_tenant(
             primary_contact_email="ada@acme.com",
             business_type=BusinessType.B2B,
             website_url="https://acme.com",  # type: ignore[arg-type]
+            gstin="29ABCDE1234F1Z5",
         ),
     )
     linked = Principal(
@@ -119,6 +122,7 @@ async def test_set_user_tenant_links_and_persists(session: AsyncSession) -> None
             primary_contact_email="bo@beta.com",
             business_type=BusinessType.B2C,
             website_url="https://beta.com",  # type: ignore[arg-type]
+            gstin="29ABCDE1234F1Z5",
         ),
     )
     updated = await set_user_tenant(session, user, tenant.id)

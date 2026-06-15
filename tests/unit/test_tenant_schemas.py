@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -18,7 +19,7 @@ from shared.tenant.schemas import (
 
 _VALID_GSTIN = "29ABCDE1234F1Z5"
 
-_BASE = {
+_BASE: dict[str, Any] = {
     "company_name": "Acme",
     "primary_contact_name": "Ada",
     "primary_contact_email": "ada@acme.com",
@@ -102,6 +103,7 @@ def test_tenant_create_rejects_invalid_email() -> None:
             primary_contact_email="not-an-email",
             business_type=BusinessType.B2B,
             website_url="https://gamoft.com",  # type: ignore[arg-type]
+            gstin="29ABCDE1234F1Z5",
         )
 
 
