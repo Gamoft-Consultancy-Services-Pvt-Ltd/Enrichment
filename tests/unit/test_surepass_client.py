@@ -25,17 +25,17 @@ def _patch_settings(**overrides: Any) -> Any:
 async def test_mock_send_returns_txn_ref() -> None:
     with _patch_settings(surepass_use_mock=True):
         txn = await send_gst_otp(_GSTIN)
-    assert isinstance(txn, str)
-    assert txn != ""
+    # The mock txn_ref embeds the gstin so verify_gst_otp can recover it; lock that in.
+    assert txn == f"mock-txn-{_GSTIN}"
 
 
 async def test_mock_verify_accepts_dev_otp() -> None:
     with _patch_settings(surepass_use_mock=True):
-        company = await verify_gst_otp("mock-txn", "123456")
+        txn = await send_gst_otp(_GSTIN)
+        company = await verify_gst_otp(txn, "123456")
     assert company is not None
-    # In mock mode the gstin is derived from the txn_ref; just verify it's a non-empty str
-    # and the record looks like an active company.
-    assert isinstance(company["gstin"], str) and company["gstin"] != ""
+    # The gstin round-trips out of the txn_ref the send step produced.
+    assert company["gstin"] == _GSTIN
     assert company["status"] == "Active"
 
 
@@ -103,3 +103,24 @@ async def test_live_send_raises_on_network_failure() -> None:
             )
             with pytest.raises(ExternalServiceError, match="Surepass"):
                 await send_gst_otp(_GSTIN)
+
+
+async def test_live_verify_raises_on_network_failure() -> None:
+    with _patch_settings(surepass_use_mock=False, surepass_api_key="k"):
+        with patch("clients.surepass_client.httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.post = AsyncMock(
+                side_effect=Exception("connection refused")
+            )
+            with pytest.raises(ExternalServiceError, match="Surepass"):
+                await verify_gst_otp("abc-123", "111111")
+
+
+async def test_live_verify_raises_on_server_error() -> None:
+    # A 5xx is an outage, not a wrong OTP — it must raise, not return None.
+    with _patch_settings(surepass_use_mock=False, surepass_api_key="k"):
+        with patch("clients.surepass_client.httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=_resp(503, {"message": "service unavailable"})
+            )
+            with pytest.raises(ExternalServiceError, match="Surepass verify returned 503"):
+                await verify_gst_otp("abc-123", "111111")

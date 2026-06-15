@@ -103,8 +103,12 @@ async def verify_gst_otp(txn_ref: str, otp: str) -> CompanyData | None:
     except Exception as exc:
         raise ExternalServiceError(f"Surepass verify_gst_otp failed: {exc}") from exc
 
+    if response.status_code >= 500:
+        # A server-side outage is NOT a wrong OTP; surfacing it as an error keeps the
+        # caller from burning the tenant's attempts (and locking them out) on our dime.
+        raise ExternalServiceError(f"Surepass verify returned {response.status_code}")
     if response.status_code != 200:
-        # Surepass returns a 4xx when the OTP is wrong/expired — a domain outcome.
+        # A 4xx means Surepass rejected the OTP (wrong/expired) — a domain outcome.
         return None
 
     record: dict[str, Any] = response.json().get("data", {})
