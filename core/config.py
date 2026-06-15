@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     groq_api_key: str = ""
     serper_api_key: str = ""
+    surepass_api_key: str = ""
+    surepass_base_url: str = "https://kyc-api.surepass.io"
+    surepass_use_mock: bool = True
 
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""

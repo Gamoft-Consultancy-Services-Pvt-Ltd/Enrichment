@@ -78,3 +78,12 @@ def test_settings_serper_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPat
     monkeypatch.delenv("SERPER_API_KEY", raising=False)
     settings = build_settings()
     assert settings.serper_api_key == ""
+
+
+def test_surepass_settings_have_defaults() -> None:
+    from tests.helpers import build_settings
+
+    settings = build_settings()
+    assert settings.surepass_api_key == ""
+    assert settings.surepass_base_url == "https://kyc-api.surepass.io"
+    assert settings.surepass_use_mock is True
