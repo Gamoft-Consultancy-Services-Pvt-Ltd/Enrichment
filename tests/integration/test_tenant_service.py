@@ -137,7 +137,7 @@ async def test_mark_kyb_failed_clears_txn(session: AsyncSession) -> None:
 async def test_reset_kyb_clears_counters_and_sets_gstin(session: AsyncSession) -> None:
     tenant = await create_tenant(session, _tenant_create())
     await bump_kyb_attempts(session, tenant.id)
-    await bump_kyb_resends(session, tenant.id)
+    assert await bump_kyb_resends(session, tenant.id) == 1
     await mark_kyb_failed(session, tenant.id)
     new_gstin = "27AAAAA0000A1Z5"
     await reset_kyb(session, tenant.id, new_gstin)
