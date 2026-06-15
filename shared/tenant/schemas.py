@@ -44,11 +44,13 @@ class OnboardingStatus(StrEnum):
 class KybStatus(StrEnum):
     """Whether the tenant has proven control of its GSTIN via GST-OTP."""
 
-    PENDING  = "PENDING"   # OTP sent, not yet verified
+    PENDING  = "PENDING"   # row created; OTP not yet confirmed
     VERIFIED = "VERIFIED"  # OTP confirmed; pipeline may run
     FAILED   = "FAILED"    # too many wrong attempts; tenant may restart
 
 
+# Format check only; the state-code range is intentionally not constrained here
+# (Surepass validates the GSTIN against the live GST authority during KYB).
 GSTIN_PATTERN = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
 
 

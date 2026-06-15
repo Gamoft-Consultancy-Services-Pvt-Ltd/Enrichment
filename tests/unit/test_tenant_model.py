@@ -34,20 +34,17 @@ def test_tenant_has_the_expected_columns() -> None:
     }
 
 
-def test_tenant_has_kyb_columns() -> None:
-    from shared.tenant.models import Tenant
-
-    cols = Tenant.__table__.columns
-    for name in (
-        "gstin",
-        "kyb_status",
-        "kyb_company_data",
-        "kyb_txn_ref",
-        "kyb_attempts",
-        "kyb_resends",
-        "kyb_verified_at",
-    ):
-        assert name in cols
+def test_kyb_columns_have_expected_nullability() -> None:
+    # Existence is already covered by test_tenant_has_the_expected_columns; here we
+    # pin the nullability that the KYB gate depends on.
+    cols = Tenant.__table__.c
+    assert cols.gstin.nullable is False
+    assert cols.kyb_status.nullable is False
+    assert cols.kyb_attempts.nullable is False
+    assert cols.kyb_resends.nullable is False
+    assert cols.kyb_company_data.nullable is True
+    assert cols.kyb_txn_ref.nullable is True
+    assert cols.kyb_verified_at.nullable is True
 
 
 def test_id_is_primary_key_and_activated_at_is_nullable() -> None:
