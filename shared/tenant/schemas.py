@@ -4,11 +4,12 @@ These are the single source of truth for tenant enums; api/, models.py, and
 tests import them from here.
 """
 
+import re
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, EmailStr
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, EmailStr, field_validator
 
 
 class BusinessType(StrEnum):
@@ -40,6 +41,25 @@ class OnboardingStatus(StrEnum):
     FAILED   = "FAILED"    # pipeline crashed; tenant can retry
 
 
+class KybStatus(StrEnum):
+    """Whether the tenant has proven control of its GSTIN via GST-OTP."""
+
+    PENDING  = "PENDING"   # OTP sent, not yet verified
+    VERIFIED = "VERIFIED"  # OTP confirmed; pipeline may run
+    FAILED   = "FAILED"    # too many wrong attempts; tenant may restart
+
+
+GSTIN_PATTERN = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
+
+
+def normalize_gstin(value: str) -> str:
+    """Strip, uppercase, and validate a GSTIN. Raise ValueError if malformed."""
+    candidate = value.strip().upper()
+    if not GSTIN_PATTERN.match(candidate):
+        raise ValueError("invalid GSTIN format")
+    return candidate
+
+
 class TenantCreate(BaseModel):
     """Fields a caller provides to create a tenant. The system assigns the rest."""
 
@@ -48,8 +68,14 @@ class TenantCreate(BaseModel):
     primary_contact_email: EmailStr
     business_type: BusinessType
     website_url: AnyHttpUrl
+    gstin: str
     timezone: str = "UTC"
     language_preference: str = "en"
+
+    @field_validator("gstin")
+    @classmethod
+    def _normalize_gstin(cls, value: str) -> str:
+        return normalize_gstin(value)
 
 
 class TenantRead(BaseModel):
