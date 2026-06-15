@@ -48,12 +48,12 @@ Dependency rule preserved: `api → modules → shared → clients → core`.
 
 | Layer | File | Responsibility |
 |---|---|---|
-| `clients` | `surepass_client.py` (stub → built) | Only file that talks to Surepass. `send_gst_otp(gstin) -> txn_ref`, `verify_gst_otp(txn_ref, otp) -> CompanyData`. Imports `core` config only. Mirrors `groq_client.py`. |
+| `clients` | `surepass_client.py` (stub → built) | Only file that talks to Surepass. `send_gst_otp(gstin) -> txn_ref`, `verify_gst_otp(txn_ref, otp) -> CompanyData`. Imports `core` config only. Mirrors `groq_client.py`. Config-gated mock path (see "Building without Surepass credentials"). |
 | `shared` | `tenant/service.py` | Pure DB state transitions (no network): store txn ref, increment counters, `mark_kyb_verified`, `mark_kyb_failed`. |
 | `shared` | `tenant/schemas.py` | New `KybStatus` enum; `gstin` on `TenantCreate`; `kyb_status` on `TenantRead`. |
 | `modules` | `tenant_onboarding/kyb.py` (new) | Orchestration / business rules: composes Surepass client + tenant service; owns attempt/resend caps and pass/fail logic. Does **not** enqueue. New public surface of the module. |
 | `api` | `onboarding.py` | Thin endpoints. Enqueues the pipeline on `VERIFIED` (mirrors current enqueue-after-create pattern). |
-| `core` | `config.py` | New settings: `surepass_api_key`, `surepass_base_url`. |
+| `core` | `config.py` | New settings: `surepass_api_key`, `surepass_base_url`, `surepass_use_mock`. |
 
 Orchestration sits in `modules/tenant_onboarding` (not `api/`, to keep business
 rules out of the HTTP layer; not `shared/`, to keep `shared/` network-free).
@@ -105,6 +105,36 @@ The onboarding pipeline (`pipeline.py`) is **unchanged** for this slice. Feeding
 the verified legal name into the Persona agent is a deferred follow-up (the data
 is stored now; wiring is separate).
 
+## Building without Surepass credentials
+
+A Surepass API key is not yet available. Because Surepass is isolated behind
+`clients/surepass_client.py`, the **entire feature is built and run now** against
+that interface; only the live HTTP body of the two client functions waits on the
+token.
+
+- **Provisional contract.** The exact Surepass GST-OTP request/response field
+  names are not yet published (the marketing page omits them). The contract
+  defined here (`send_gst_otp(gstin) -> txn_ref`,
+  `verify_gst_otp(txn_ref, otp) -> CompanyData` with legal name / trade name /
+  status / address) is **provisional pending API docs**. The only file expected
+  to change when docs arrive is `surepass_client.py`.
+- **Config-gated mock.** New setting `surepass_use_mock` (default `True` until
+  credentials land). In mock mode: `send_gst_otp` returns a fake transaction
+  reference; `verify_gst_otp` accepts a known dev OTP (`123456`) and returns a
+  sample verified company, any other OTP is treated as wrong. This makes the full
+  onboarding → verify → pipeline flow runnable locally with no token, for
+  development and demos.
+- **Real HTTP written alongside.** The live implementation is written behind the
+  same two functions, to the best-known contract; it is simply not exercised
+  until a token exists.
+- **Sandbox option.** Surepass typically offers a sandbox/UAT environment. If
+  sandbox credentials can be obtained, point `surepass_base_url` at it and set
+  `surepass_use_mock=False` to validate the real contract before production.
+
+**When the token + API docs arrive:** confirm the request/response shapes in
+`surepass_client.py`, set `surepass_use_mock=False`, run the live integration
+test. Nothing else changes.
+
 ## Error handling
 
 - **Malformed GSTIN** → `422` at `POST /onboarding`; no tenant created.
@@ -124,7 +154,11 @@ is stored now; wiring is separate).
   client + service (attempt cap → `FAILED`, resend cap, verify → `VERIFIED`);
   state-transition helpers.
 - **Integration (real Postgres):** the four endpoints — happy path (onboard →
-  verify → pipeline enqueued) and the 3-strikes-then-restart path.
+  verify → pipeline enqueued) and the 3-strikes-then-restart path. These run
+  against the **mock** Surepass path (`surepass_use_mock=True`), so they need no
+  token.
+- **Live Surepass integration:** a single test that hits the real API, **skipped
+  unless `SUREPASS_API_KEY` is set**. Stays skipped until credentials arrive.
 
 ## Out of scope (explicitly deferred)
 
