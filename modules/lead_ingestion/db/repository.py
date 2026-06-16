@@ -1,6 +1,7 @@
 """Async data access layer for lead_ingestion models."""
 
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,6 +81,25 @@ async def get_whatsapp_connection_by_phone_number_id(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def log_unroutable_event(
+    session: AsyncSession,
+    platform_event_id: str,
+    source_channel: str,
+    raw_event_json: dict[str, Any],
+) -> None:
+    """Write an IntakeEventLog row for a webhook that could not be routed to any tenant."""
+    log = IntakeEventLog(
+        tenant_id=None,
+        lead_id=None,
+        platform_event_id=platform_event_id,
+        source_channel=source_channel,
+        status="unroutable",
+        raw_event_json=raw_event_json,
+    )
+    session.add(log)
+    await session.commit()
 
 
 async def get_connection_by_page_or_ig_account_id(

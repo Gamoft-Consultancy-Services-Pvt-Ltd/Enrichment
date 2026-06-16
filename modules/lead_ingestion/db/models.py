@@ -68,8 +68,8 @@ class IntakeEventLog(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("tenants.id"), nullable=False, index=True
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=True, index=True
     )
     lead_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("leads.id"), nullable=True, index=True
@@ -112,7 +112,7 @@ class LeadFormFieldMap(Base):
 
 
 class LeadTouchpoint(Base):
-    """An additional inbound event that matched an existing Lead during dedup."""
+    """Every inbound event linked to a Lead — first capture and subsequent dedup hits."""
 
     __tablename__ = "lead_touchpoints"
 
@@ -120,6 +120,7 @@ class LeadTouchpoint(Base):
     lead_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("leads.id"), nullable=False, index=True
     )
+    platform_event_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     source_channel: Mapped[str] = mapped_column(String, nullable=False)
     raw_event_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

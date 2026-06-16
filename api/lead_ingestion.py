@@ -19,7 +19,6 @@ from auth.models import User
 from core.config import get_settings
 from core.db import get_session
 from core.queue import get_arq_pool
-from modules.lead_ingestion.db.repository import get_connection_by_page_or_ig_account_id
 from modules.lead_ingestion.oauth.facebook import build_facebook_auth_url, exchange_facebook_code
 from modules.lead_ingestion.oauth.instagram import (
     build_instagram_auth_url,
@@ -29,8 +28,10 @@ from modules.lead_ingestion.oauth.whatsapp import exchange_whatsapp_signup_code
 from modules.lead_ingestion.service import (
     HmacValidationError,
     OAuthStateError,
+    get_connection_by_page_or_ig_account_id,
     get_whatsapp_connection_by_phone_number_id,
     handle_file_upload,
+    log_unroutable_event,
     validate_signature,
 )
 
@@ -73,7 +74,7 @@ async def receive_webhook(
 
     Routes by the 'object' field:
       - 'whatsapp_business_account' → WhatsApp messages (route by phone_number_id)
-      - 'page'                      → Facebook DMs + Lead Ads (route by page_id)
+      - 'page'                      → Facebook DMs (route by page_id)
       - 'instagram'                 → Instagram DMs (route by ig_account_id)
     """
     raw_body = await request.body()
@@ -117,6 +118,11 @@ async def _route_whatsapp(
 
     connection = await get_whatsapp_connection_by_phone_number_id(session, phone_number_id)
     if connection is None:
+        try:
+            platform_event_id: str = payload["entry"][0]["changes"][0]["value"]["messages"][0]["id"]
+            await log_unroutable_event(session, platform_event_id, "WHATSAPP", payload)
+        except (KeyError, IndexError):
+            pass
         return {"status": "unknown_connection"}
 
     await arq_pool.enqueue_job(
@@ -143,19 +149,17 @@ async def _route_facebook_instagram(
 
     connection = await get_connection_by_page_or_ig_account_id(session, account_id)
     if connection is None:
+        try:
+            platform_event_id_fb: str = payload["entry"][0]["messaging"][0]["message"]["mid"]
+            object_type: str = str(payload.get("object", ""))
+            source_channel = "FACEBOOK" if object_type == "page" else "INSTAGRAM"
+            await log_unroutable_event(session, platform_event_id_fb, source_channel, payload)
+        except (KeyError, IndexError):
+            pass
         return {"status": "unknown_connection"}
 
-    # Detect whether this entry contains a leadgen event (Lead Ads) or a message event
-    try:
-        changes: list[dict[str, Any]] = payload["entry"][0]["changes"]
-        change_field: str = changes[0].get("field", "")
-    except (KeyError, IndexError):
-        return {"status": "ignored"}
-
-    job_name = "run_lead_ad_capture" if change_field == "leadgen" else "run_lead_capture"
-
     await arq_pool.enqueue_job(
-        job_name,
+        "run_lead_capture",
         {
             "tenant_id": str(connection.tenant_id),
             "channel_connection_id": str(connection.id),

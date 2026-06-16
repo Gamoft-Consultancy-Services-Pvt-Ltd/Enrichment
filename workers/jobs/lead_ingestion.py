@@ -10,7 +10,9 @@ from modules.lead_ingestion.service import (
     Lead,
     PreFlightHaltError,
     check_pre_flight,
+    normalise_facebook_dm,
     normalise_file_row,
+    normalise_instagram_dm,
     normalise_whatsapp_message,
     run_capture,
     run_capture_message,
@@ -29,11 +31,28 @@ async def run_lead_capture(ctx: dict[str, object], payload_dict: dict[str, Any])
     factory = async_sessionmaker(engine, expire_on_commit=False)
 
     async with factory() as session:
-        event = normalise_whatsapp_message(
-            raw_payload,
-            tenant_id=tenant_id,
-            channel_connection_id=channel_connection_id,
-        )
+        object_type = raw_payload.get("object", "")
+        if object_type == "whatsapp_business_account":
+            event = normalise_whatsapp_message(
+                raw_payload,
+                tenant_id=tenant_id,
+                channel_connection_id=channel_connection_id,
+            )
+        elif object_type == "page":
+            event = normalise_facebook_dm(
+                raw_payload,
+                tenant_id=tenant_id,
+                channel_connection_id=channel_connection_id,
+            )
+        elif object_type == "instagram":
+            event = normalise_instagram_dm(
+                raw_payload,
+                tenant_id=tenant_id,
+                channel_connection_id=channel_connection_id,
+            )
+        else:
+            await engine.dispose()
+            return
         await run_capture_message(session, event)
 
     await engine.dispose()
