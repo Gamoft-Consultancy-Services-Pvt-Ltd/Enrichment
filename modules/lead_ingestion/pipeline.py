@@ -75,6 +75,7 @@ async def run_capture(
     session.add(lead)
     await session.flush()  # materialise lead.id for the foreign key below
 
+    session.add(deduplicator.build_touchpoint(lead, event))
     await intake_logger.finalise_event_log(session, log_id, lead.id, "received")
     await session.commit()
 

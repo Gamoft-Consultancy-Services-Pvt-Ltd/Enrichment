@@ -1,9 +1,12 @@
-"""Facebook OAuth for page-level connections (Messenger + Lead Ads).
+"""Facebook OAuth for page-level connections (Messenger DMs + Instagram DMs).
 
 3-step token chain on callback:
   code → short-lived user token → long-lived user token → Page Access Token (non-expiring)
 
-One ChannelConnection is created per Facebook Page granted by the user.
+One Facebook ChannelConnection is created per Facebook Page granted by the user.
+If a Page has a connected Instagram Business account, one additional Instagram
+ChannelConnection is created using the same non-expiring Page access token — this
+avoids the 60-day expiry that affects Instagram Business Login tokens.
 
 Public surface:
   build_facebook_auth_url(tenant_id, *, settings) -> str
@@ -14,6 +17,8 @@ Internal helpers (patchable in tests):
   _exchange_short_for_long_lived(short_lived, *, settings) -> str
   _fetch_page_accounts(long_lived, *, settings) -> list[dict]
   _subscribe_page_webhooks(page_id, page_token, *, settings) -> None
+  _fetch_connected_ig_account(page_id, page_token, *, settings) -> str | None
+  _subscribe_ig_via_page_token(ig_account_id, page_token, *, settings) -> None
 """
 
 import uuid
@@ -37,8 +42,8 @@ _SCOPES = ",".join(
         "pages_manage_metadata",
         "pages_messaging",
         "pages_read_engagement",
-        "leads_retrieval",
-        "ads_management",
+        "instagram_manage_messages",
+        "instagram_basic",
     ]
 )
 
@@ -145,7 +150,7 @@ async def _subscribe_page_webhooks(
     *,
     settings: Settings,
 ) -> None:
-    """Subscribe a page to messages and leadgen webhook events."""
+    """Subscribe a page to messages webhook events."""
     import httpx
 
     version = settings.meta_graph_api_version
@@ -153,13 +158,70 @@ async def _subscribe_page_webhooks(
         resp = await client.post(
             f"{_GRAPH_BASE}/{version}/{page_id}/subscribed_apps",
             params={
-                "subscribed_fields": "messages,leadgen",
+                "subscribed_fields": "messages",
                 "access_token": page_token,
             },
         )
     if not resp.is_success:
         raise ChannelApiError(
             f"Failed to subscribe page {page_id} to webhooks: {resp.status_code} {resp.text}"
+        )
+
+
+async def _fetch_connected_ig_account(
+    page_id: str,
+    page_token: str,
+    *,
+    settings: Settings,
+) -> str | None:
+    """Return the Instagram Business Account ID connected to this Facebook Page, or None.
+
+    Uses the non-expiring page token — no separate Instagram OAuth needed.
+    Returns None (not an error) when the page has no linked Instagram account or
+    when the Graph API call fails, so callers can skip gracefully.
+    """
+    import httpx
+
+    version = settings.meta_graph_api_version
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_GRAPH_BASE}/{version}/{page_id}",
+            params={
+                "fields": "instagram_business_account",
+                "access_token": page_token,
+            },
+        )
+    if not resp.is_success:
+        return None
+    data: dict[str, Any] = resp.json()
+    ig_account = data.get("instagram_business_account")
+    if not ig_account:
+        return None
+    return str(ig_account["id"])
+
+
+async def _subscribe_ig_via_page_token(
+    ig_account_id: str,
+    page_token: str,
+    *,
+    settings: Settings,
+) -> None:
+    """Subscribe an Instagram Business account to messages webhooks using the page token."""
+    import httpx
+
+    version = settings.meta_graph_api_version
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_GRAPH_BASE}/{version}/{ig_account_id}/subscribed_apps",
+            params={
+                "subscribed_fields": "messages",
+                "access_token": page_token,
+            },
+        )
+    if not resp.is_success:
+        raise ChannelApiError(
+            f"Failed to subscribe Instagram account {ig_account_id} to webhooks: "
+            f"{resp.status_code} {resp.text}"
         )
 
 
@@ -174,6 +236,9 @@ async def exchange_facebook_code(
 
     Verifies the HMAC-signed state, runs the 3-step token chain, subscribes each
     page to webhook events, and returns one ChannelConnection per page.
+
+    If a page has a connected Instagram Business account, also creates a non-expiring
+    Instagram ChannelConnection using the same page token (expires_at=None).
 
     Raises:
         OAuthStateError: if the state token is invalid.
@@ -199,19 +264,37 @@ async def exchange_facebook_code(
 
         await _subscribe_page_webhooks(page_id, page_token, settings=settings)
 
-        credentials = encrypt_credentials(
+        fb_credentials = encrypt_credentials(
             {"page_access_token": page_token, "page_id": page_id},
             key=settings.channel_credentials_encryption_key,
         )
-        conn = ChannelConnection(
+        fb_conn = ChannelConnection(
             tenant_id=tenant_id,
             channel_type="facebook",
             status="active",
-            credentials_encrypted=credentials,
+            credentials_encrypted=fb_credentials,
             connection_metadata={"page_id": page_id, "page_name": page_name},
         )
-        session.add(conn)
-        connections.append(conn)
+        session.add(fb_conn)
+        connections.append(fb_conn)
+
+        ig_account_id = await _fetch_connected_ig_account(page_id, page_token, settings=settings)
+        if ig_account_id:
+            await _subscribe_ig_via_page_token(ig_account_id, page_token, settings=settings)
+            ig_credentials = encrypt_credentials(
+                {"page_access_token": page_token, "ig_account_id": ig_account_id},
+                key=settings.channel_credentials_encryption_key,
+            )
+            ig_conn = ChannelConnection(
+                tenant_id=tenant_id,
+                channel_type="instagram",
+                status="active",
+                credentials_encrypted=ig_credentials,
+                expires_at=None,
+                connection_metadata={"ig_account_id": ig_account_id},
+            )
+            session.add(ig_conn)
+            connections.append(ig_conn)
 
     await session.commit()
     return connections
