@@ -80,10 +80,14 @@ async def test_facebook_connect_creates_one_connection_per_page(
     assert len(connections) == 2
 
     rows = (
-        await session.execute(
-            select(ChannelConnection).where(ChannelConnection.tenant_id == tenant_id)
+        (
+            await session.execute(
+                select(ChannelConnection).where(ChannelConnection.tenant_id == tenant_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(rows) == 2
     assert all(r.channel_type == "facebook" for r in rows)

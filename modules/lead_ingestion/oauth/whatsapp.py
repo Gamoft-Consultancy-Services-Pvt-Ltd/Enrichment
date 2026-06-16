@@ -67,9 +67,7 @@ async def _get_waba_ids(token: str, *, settings: Settings) -> list[str]:
             params={"input_token": token, "access_token": app_token},
         )
     if not resp.is_success:
-        raise ChannelApiError(
-            f"debug_token lookup failed: {resp.status_code} {resp.text}"
-        )
+        raise ChannelApiError(f"debug_token lookup failed: {resp.status_code} {resp.text}")
     data: dict[str, Any] = resp.json()
     # granular_scopes contains objects like {"scope": "whatsapp_business_management", "target_ids": [...]}
     granular_scopes: list[dict[str, Any]] = data.get("data", {}).get("granular_scopes", [])

@@ -3,9 +3,10 @@
 These tests drive pipeline.run_capture directly against a real Postgres and
 verify the two dedup scenarios:
 
-1. Redelivery (same platform_event_id):  1 log row, 1 lead, 0 touchpoints.
+1. Redelivery (same platform_event_id):  1 log row, 1 lead, 1 touchpoint
+   (the touchpoint is from the initial capture; redelivery adds nothing).
 2. Genuine new interaction (same identity, different event_id): 1 lead, 2 log
-   rows, 1 touchpoint.
+   rows, 2 touchpoints (1 from initial capture + 1 from the dedup hit).
 """
 
 from uuid import UUID
@@ -75,7 +76,7 @@ async def test_redelivery_produces_one_log_and_one_lead(session: AsyncSession) -
             .where(LeadTouchpoint.lead_id == lead1.id)
         )
     ).scalar_one()
-    assert tp_count == 0, "redelivery must not create a touchpoint"
+    assert tp_count == 1, "initial capture creates one touchpoint; redelivery must not add another"
 
 
 async def test_new_interaction_same_identity_creates_touchpoint(session: AsyncSession) -> None:
@@ -104,7 +105,7 @@ async def test_new_interaction_same_identity_creates_touchpoint(session: AsyncSe
             .where(LeadTouchpoint.lead_id == lead1.id)
         )
     ).scalar_one()
-    assert tp_count == 1
+    assert tp_count == 2  # 1 from initial capture (ev1) + 1 from dedup hit (ev2)
 
 
 async def test_phone_normalisation_matches_across_formats(session: AsyncSession) -> None:

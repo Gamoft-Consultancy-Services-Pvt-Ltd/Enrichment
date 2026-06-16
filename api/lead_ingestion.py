@@ -19,15 +19,14 @@ from auth.models import User
 from core.config import get_settings
 from core.db import get_session
 from core.queue import get_arq_pool
-from modules.lead_ingestion.oauth.facebook import build_facebook_auth_url, exchange_facebook_code
-from modules.lead_ingestion.oauth.instagram import (
-    build_instagram_auth_url,
-    exchange_instagram_code,
-)
-from modules.lead_ingestion.oauth.whatsapp import exchange_whatsapp_signup_code
 from modules.lead_ingestion.service import (
     HmacValidationError,
     OAuthStateError,
+    build_facebook_auth_url,
+    build_instagram_auth_url,
+    exchange_facebook_code,
+    exchange_instagram_code,
+    exchange_whatsapp_signup_code,
     get_connection_by_page_or_ig_account_id,
     get_whatsapp_connection_by_phone_number_id,
     handle_file_upload,
@@ -308,9 +307,7 @@ async def whatsapp_embedded_signup_callback(
             tenant_id=user.tenant_id,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"WhatsApp connection failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"WhatsApp connection failed: {exc}") from exc
 
     return {
         "status": "connected",

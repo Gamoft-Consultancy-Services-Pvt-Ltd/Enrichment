@@ -1,15 +1,16 @@
 """Insert fake tenant + ChannelConnection for Phase 20 multi-tenant isolation test."""
+
 import asyncio
 import uuid
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import auth.models  # noqa: F401
+import modules.lead_ingestion.db.models  # noqa: F401
+import shared.channels.models  # noqa: F401
 import shared.tenant.models  # noqa: F401
 import shared.tenant_config.models  # noqa: F401
-import shared.channels.models  # noqa: F401
-import modules.lead_ingestion.db.models  # noqa: F401
-
 from core.config import get_settings
 
 
@@ -39,7 +40,8 @@ async def main() -> None:
         await session.commit()
         row = result.fetchone()
         print(f"fake_tenant_id={fake_tenant_id}")
-        print(f"channel_connection id={row[0]} tenant_id={row[1]}")
+        if row is not None:
+            print(f"channel_connection id={row[0]} tenant_id={row[1]}")
     await engine.dispose()
 
 

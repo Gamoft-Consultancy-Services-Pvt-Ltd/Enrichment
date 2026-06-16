@@ -39,7 +39,12 @@ def test_build_url_points_to_facebook_dialog() -> None:
 
 def test_build_url_contains_all_required_scopes() -> None:
     url = build_facebook_auth_url(uuid.uuid4(), settings=_settings())
-    for scope in ["pages_show_list", "pages_messaging", "pages_manage_metadata", "pages_read_engagement"]:
+    for scope in [
+        "pages_show_list",
+        "pages_messaging",
+        "pages_manage_metadata",
+        "pages_read_engagement",
+    ]:
         assert scope in url
 
 
@@ -202,9 +207,7 @@ async def test_exchange_code_sets_tenant_id_on_connection() -> None:
             "modules.lead_ingestion.oauth.facebook._fetch_connected_ig_account",
             new=AsyncMock(return_value=None),
         ),
-        patch(
-            "modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"),
     ):
         connections = await exchange_facebook_code("code", state, session=session, settings=s)
 
@@ -234,9 +237,7 @@ async def test_exchange_code_creates_instagram_connection_when_ig_linked() -> No
         ),
         patch(
             "modules.lead_ingestion.oauth.facebook._fetch_page_accounts",
-            new=AsyncMock(
-                return_value=[{"id": "p1", "name": "Page One", "access_token": "tok-1"}]
-            ),
+            new=AsyncMock(return_value=[{"id": "p1", "name": "Page One", "access_token": "tok-1"}]),
         ),
         patch("modules.lead_ingestion.oauth.facebook._subscribe_page_webhooks", new=AsyncMock()),
         patch(
@@ -247,9 +248,7 @@ async def test_exchange_code_creates_instagram_connection_when_ig_linked() -> No
             "modules.lead_ingestion.oauth.facebook._subscribe_ig_via_page_token",
             new=AsyncMock(),
         ),
-        patch(
-            "modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"),
     ):
         connections = await exchange_facebook_code("code", state, session=session, settings=s)
 
@@ -279,9 +278,7 @@ async def test_exchange_code_instagram_connection_has_no_expiry() -> None:
         ),
         patch(
             "modules.lead_ingestion.oauth.facebook._fetch_page_accounts",
-            new=AsyncMock(
-                return_value=[{"id": "p1", "name": "P1", "access_token": "tok-1"}]
-            ),
+            new=AsyncMock(return_value=[{"id": "p1", "name": "P1", "access_token": "tok-1"}]),
         ),
         patch("modules.lead_ingestion.oauth.facebook._subscribe_page_webhooks", new=AsyncMock()),
         patch(
@@ -292,9 +289,7 @@ async def test_exchange_code_instagram_connection_has_no_expiry() -> None:
             "modules.lead_ingestion.oauth.facebook._subscribe_ig_via_page_token",
             new=AsyncMock(),
         ),
-        patch(
-            "modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"),
     ):
         connections = await exchange_facebook_code("code", state, session=session, settings=s)
 
@@ -320,18 +315,14 @@ async def test_exchange_code_skips_instagram_when_not_linked() -> None:
         ),
         patch(
             "modules.lead_ingestion.oauth.facebook._fetch_page_accounts",
-            new=AsyncMock(
-                return_value=[{"id": "p1", "name": "P1", "access_token": "tok-1"}]
-            ),
+            new=AsyncMock(return_value=[{"id": "p1", "name": "P1", "access_token": "tok-1"}]),
         ),
         patch("modules.lead_ingestion.oauth.facebook._subscribe_page_webhooks", new=AsyncMock()),
         patch(
             "modules.lead_ingestion.oauth.facebook._fetch_connected_ig_account",
             new=AsyncMock(return_value=None),
         ),
-        patch(
-            "modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"),
     ):
         connections = await exchange_facebook_code("code", state, session=session, settings=s)
 
@@ -358,9 +349,7 @@ async def test_exchange_code_calls_ig_subscribe_when_ig_linked() -> None:
         ),
         patch(
             "modules.lead_ingestion.oauth.facebook._fetch_page_accounts",
-            new=AsyncMock(
-                return_value=[{"id": "p1", "name": "P1", "access_token": "page-tok"}]
-            ),
+            new=AsyncMock(return_value=[{"id": "p1", "name": "P1", "access_token": "page-tok"}]),
         ),
         patch("modules.lead_ingestion.oauth.facebook._subscribe_page_webhooks", new=AsyncMock()),
         patch(
@@ -371,9 +360,7 @@ async def test_exchange_code_calls_ig_subscribe_when_ig_linked() -> None:
             "modules.lead_ingestion.oauth.facebook._subscribe_ig_via_page_token",
             new=ig_subscribe_mock,
         ),
-        patch(
-            "modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.facebook.encrypt_credentials", return_value=b"enc"),
     ):
         await exchange_facebook_code("code", state, session=session, settings=s)
 
@@ -389,7 +376,9 @@ async def test_exchange_code_invalid_state_raises_oauth_state_error() -> None:
     session = AsyncMock()
     session.add = MagicMock()
     with pytest.raises(OAuthStateError):
-        await exchange_facebook_code("code", "bad.state.token", session=session, settings=_settings())
+        await exchange_facebook_code(
+            "code", "bad.state.token", session=session, settings=_settings()
+        )
 
 
 async def test_exchange_code_api_failure_raises_channel_api_error() -> None:

@@ -66,9 +66,7 @@ async def test_instagram_connect_creates_connection_row(session: AsyncSession) -
             new=AsyncMock(),
         ),
     ):
-        conn = await exchange_instagram_code(
-            "auth-code", state, session=session, settings=settings
-        )
+        conn = await exchange_instagram_code("auth-code", state, session=session, settings=settings)
 
     assert conn.channel_type == "instagram"
     assert conn.status == "active"
@@ -105,9 +103,7 @@ async def test_instagram_connect_stores_correct_metadata(session: AsyncSession) 
             new=AsyncMock(),
         ),
     ):
-        conn = await exchange_instagram_code(
-            "auth-code", state, session=session, settings=settings
-        )
+        conn = await exchange_instagram_code("auth-code", state, session=session, settings=settings)
 
     assert conn.connection_metadata is not None
     assert conn.connection_metadata["ig_account_id"] == "ig-789"
@@ -137,9 +133,7 @@ async def test_instagram_connect_credentials_are_decryptable(session: AsyncSessi
             new=AsyncMock(),
         ),
     ):
-        conn = await exchange_instagram_code(
-            "auth-code", state, session=session, settings=settings
-        )
+        conn = await exchange_instagram_code("auth-code", state, session=session, settings=settings)
 
     assert isinstance(conn.credentials_encrypted, bytes)
 
@@ -176,13 +170,12 @@ async def test_instagram_connect_sets_expiry(session: AsyncSession) -> None:
             new=AsyncMock(),
         ),
     ):
-        conn = await exchange_instagram_code(
-            "auth-code", state, session=session, settings=settings
-        )
+        conn = await exchange_instagram_code("auth-code", state, session=session, settings=settings)
 
     assert conn.expires_at is not None
     # expires_at should be ~60 days from now — more than 59 days in the future
     from datetime import timedelta
+
     assert conn.expires_at > before + timedelta(days=59)
 
 
@@ -207,6 +200,4 @@ async def test_instagram_connect_api_failure_raises(session: AsyncSession) -> No
         ),
     ):
         with pytest.raises(ChannelApiError):
-            await exchange_instagram_code(
-                "auth-code", state, session=session, settings=settings
-            )
+            await exchange_instagram_code("auth-code", state, session=session, settings=settings)
