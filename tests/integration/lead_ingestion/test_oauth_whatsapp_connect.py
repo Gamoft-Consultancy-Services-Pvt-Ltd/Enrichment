@@ -75,10 +75,14 @@ async def test_whatsapp_connect_creates_one_connection_per_phone(
     assert len(connections) == 2
 
     rows = (
-        await session.execute(
-            select(ChannelConnection).where(ChannelConnection.tenant_id == tenant_id)
+        (
+            await session.execute(
+                select(ChannelConnection).where(ChannelConnection.tenant_id == tenant_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(rows) == 2
     assert all(r.channel_type == "whatsapp" for r in rows)

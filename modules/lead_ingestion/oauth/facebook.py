@@ -85,9 +85,7 @@ async def _exchange_code_for_short_lived(
             },
         )
     if not resp.is_success:
-        raise ChannelApiError(
-            f"Facebook code exchange failed: {resp.status_code} {resp.text}"
-        )
+        raise ChannelApiError(f"Facebook code exchange failed: {resp.status_code} {resp.text}")
     data: dict[str, Any] = resp.json()
     return str(data["access_token"])
 

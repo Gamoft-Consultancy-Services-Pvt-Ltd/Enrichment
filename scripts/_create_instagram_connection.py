@@ -3,21 +3,21 @@
 Uses the real encrypt_credentials utility so credentials_encrypted is properly
 AES-256-GCM encrypted — Phase 13 sub-check 13.2 will pass.
 """
+
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+# Import all ORM models so SQLAlchemy can resolve foreign keys
+import auth.models  # noqa: F401
+import modules.lead_ingestion.db.models  # noqa: F401
+import shared.tenant.models  # noqa: F401
+import shared.tenant_config.models  # noqa: F401
 from core.config import get_settings
 from modules.lead_ingestion.crypto import encrypt_credentials
 from shared.channels.models import ChannelConnection
-
-# Import all ORM models so SQLAlchemy can resolve foreign keys
-import auth.models  # noqa: F401
-import shared.tenant.models  # noqa: F401
-import shared.tenant_config.models  # noqa: F401
-import modules.lead_ingestion.db.models  # noqa: F401
 
 TENANT_ID = UUID("5a4ba9f6-f1ff-47e2-8c11-856269d277b6")
 
@@ -37,7 +37,7 @@ async def main() -> None:
         key=settings.channel_credentials_encryption_key,
     )
 
-    expires_at = datetime.now(timezone.utc) + timedelta(days=60)
+    expires_at = datetime.now(UTC) + timedelta(days=60)
 
     async with factory() as session:
         conn = ChannelConnection(
@@ -54,7 +54,7 @@ async def main() -> None:
         session.add(conn)
         await session.commit()
         await session.refresh(conn)
-        print(f"Created Instagram ChannelConnection:")
+        print("Created Instagram ChannelConnection:")
         print(f"  id={conn.id}")
         print(f"  ig_account_id={IG_ACCOUNT_ID}")
         print(f"  username={IG_USERNAME}")

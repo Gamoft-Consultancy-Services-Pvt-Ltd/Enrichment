@@ -38,10 +38,12 @@ async def test_exchange_signup_code_creates_one_connection_per_phone_number() ->
         ),
         patch(
             "modules.lead_ingestion.oauth.whatsapp._get_phone_numbers",
-            new=AsyncMock(return_value=[
-                {"id": "phone-1", "display_phone_number": "+91 98765 43210"},
-                {"id": "phone-2", "display_phone_number": "+91 11111 22222"},
-            ]),
+            new=AsyncMock(
+                return_value=[
+                    {"id": "phone-1", "display_phone_number": "+91 98765 43210"},
+                    {"id": "phone-2", "display_phone_number": "+91 11111 22222"},
+                ]
+            ),
         ),
         patch(
             "modules.lead_ingestion.oauth.whatsapp._subscribe_waba",
@@ -92,9 +94,7 @@ async def test_exchange_signup_code_multiple_wabas() -> None:
             new=AsyncMock(return_value=[{"id": "phone-X", "display_phone_number": "+1 555 0100"}]),
         ),
         patch("modules.lead_ingestion.oauth.whatsapp._subscribe_waba", new=AsyncMock()),
-        patch(
-            "modules.lead_ingestion.oauth.whatsapp.encrypt_credentials", return_value=b"enc"
-        ),
+        patch("modules.lead_ingestion.oauth.whatsapp.encrypt_credentials", return_value=b"enc"),
     ):
         connections = await exchange_whatsapp_signup_code(
             "code", session=session, settings=s, tenant_id=tenant_id
