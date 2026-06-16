@@ -2,7 +2,7 @@
 
 Sprint 2: file-row adapter.
 Sprint 3: WhatsApp DM adapter.
-Sprint 4: Instagram DM adapter, Facebook DM adapter, Lead Ad adapter.
+Sprint 4: Instagram DM adapter, Facebook DM adapter.
 """
 
 import hashlib
@@ -176,88 +176,6 @@ def normalise_facebook_dm(
         phone=None,  # Facebook DMs do not expose phone numbers in webhook
         raw_text=raw_text,
         raw_event_json=payload,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Lead Ad form field name → canonical identity field
-# ---------------------------------------------------------------------------
-
-_LEAD_AD_FIELD_MAP: dict[str, str] = {
-    # name variants
-    "full_name": "full_name",
-    "name": "full_name",
-    "first_name": "full_name",
-    # phone variants
-    "phone_number": "phone",
-    "phone": "phone",
-    "mobile": "phone",
-    # email variants
-    "email": "email",
-    "email_address": "email",
-    # location variants
-    "city": "location",
-    "location": "location",
-    "area": "location",
-}
-
-
-def normalise_lead_ad(
-    leadgen_id: str,
-    form_data: dict[str, Any],
-    *,
-    tenant_id: UUID,
-    channel_connection_id: UUID | None = None,
-    source: LeadSource = LeadSource.FACEBOOK_LEAD_AD,
-) -> NormalisedChannelEvent:
-    """Convert Meta Lead Ad form data to NormalisedChannelEvent.
-
-    The *form_data* is the response from the Graph API
-    GET /{leadgen_id}?fields=field_data, which has the shape:
-      {"id": "...", "field_data": [{"name": "full_name", "values": ["..."]}]}
-
-    platform_event_id is set to "leadgen-{leadgen_id}" for idempotency.
-
-    Args:
-        leadgen_id: The leadgen ID from the webhook (used as idempotency key).
-        form_data: The Graph API response dict containing 'field_data'.
-        tenant_id: The tenant this connection belongs to.
-        channel_connection_id: Optional ChannelConnection FK.
-        source: LeadSource.FACEBOOK_LEAD_AD or INSTAGRAM_LEAD_AD.
-
-    Returns:
-        NormalisedChannelEvent with source set to *source*.
-    """
-    canonical: dict[str, str] = {}
-    extra: dict[str, Any] = {}
-
-    for field in form_data.get("field_data", []):
-        field_name: str = field.get("name", "")
-        values: list[str] = field.get("values", [])
-        value = values[0] if values else ""
-        if not value:
-            continue
-        target = _LEAD_AD_FIELD_MAP.get(field_name.lower())
-        if target is not None and target not in canonical:
-            canonical[target] = value
-        elif target is None:
-            extra[field_name] = value
-
-    # Build a synthetic full_name from first_name if full_name wasn't mapped
-    if "full_name" not in canonical and "first_name" in extra:
-        canonical["full_name"] = extra.pop("first_name")
-
-    return NormalisedChannelEvent(
-        tenant_id=tenant_id,
-        channel_connection_id=channel_connection_id,
-        source=source,
-        platform_event_id=f"leadgen-{leadgen_id}",
-        full_name=canonical.get("full_name"),
-        phone=canonical.get("phone"),
-        email=canonical.get("email"),
-        location=canonical.get("location"),
-        raw_event_json=form_data,
-        extra_fields=extra,
     )
 
 

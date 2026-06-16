@@ -15,13 +15,25 @@ from modules.lead_ingestion.exceptions import (
     PreFlightHaltError,
 )
 from modules.lead_ingestion.file_upload_handler import handle_file_upload
-from modules.lead_ingestion.lead_retrieval_worker import process_lead_ad_webhook
-from modules.lead_ingestion.normaliser import normalise_file_row, normalise_whatsapp_message
+from modules.lead_ingestion.normaliser import (
+    normalise_facebook_dm,
+    normalise_file_row,
+    normalise_instagram_dm,
+    normalise_whatsapp_message,
+)
+from modules.lead_ingestion.oauth.facebook import build_facebook_auth_url, exchange_facebook_code
+from modules.lead_ingestion.oauth.instagram import (
+    build_instagram_auth_url,
+    exchange_instagram_code,
+)
+from modules.lead_ingestion.oauth.whatsapp import exchange_whatsapp_signup_code
 from modules.lead_ingestion.pipeline import run_capture, run_capture_message
 from modules.lead_ingestion.pre_flight import check_pre_flight
 from modules.lead_ingestion.webhook_receiver import validate_signature
 
 get_whatsapp_connection_by_phone_number_id = repository.get_whatsapp_connection_by_phone_number_id
+get_connection_by_page_or_ig_account_id = repository.get_connection_by_page_or_ig_account_id
+log_unroutable_event = repository.log_unroutable_event
 
 __all__ = [
     # Exceptions
@@ -35,10 +47,10 @@ __all__ = [
     "Lead",
     # File upload
     "handle_file_upload",
-    # Lead Ad
-    "process_lead_ad_webhook",
     # Normalisers
+    "normalise_facebook_dm",
     "normalise_file_row",
+    "normalise_instagram_dm",
     "normalise_whatsapp_message",
     # Pipeline
     "run_capture",
@@ -47,4 +59,14 @@ __all__ = [
     # Webhook
     "validate_signature",
     "get_whatsapp_connection_by_phone_number_id",
+    "get_connection_by_page_or_ig_account_id",
+    "log_unroutable_event",
+    # OAuth — Facebook
+    "build_facebook_auth_url",
+    "exchange_facebook_code",
+    # OAuth — Instagram
+    "build_instagram_auth_url",
+    "exchange_instagram_code",
+    # OAuth — WhatsApp Embedded Signup
+    "exchange_whatsapp_signup_code",
 ]

@@ -56,8 +56,6 @@ def test_lead_source_membership_is_exact() -> None:
         "WHATSAPP",
         "INSTAGRAM",
         "FACEBOOK",
-        "FACEBOOK_LEAD_AD",
-        "INSTAGRAM_LEAD_AD",
         "FILE_UPLOAD",
     }
 
