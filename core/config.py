@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     meta_app_id: str = ""
     meta_app_secret: str = ""
     meta_webhook_verify_token: str = ""
+    meta_graph_api_version: str = "v21.0"
+    meta_embedded_signup_config_id: str = ""
+    # Public base URL — used to build OAuth redirect URIs. Set to ngrok URL in dev.
+    base_url: str = "http://localhost:8000"
 
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""

@@ -51,6 +51,7 @@ async def find_duplicate(
 def build_touchpoint(existing_lead: Lead, event: NormalisedChannelEvent) -> LeadTouchpoint:
     return LeadTouchpoint(
         lead_id=existing_lead.id,
+        platform_event_id=event.platform_event_id,
         source_channel=event.source.value,
         raw_event_json=event.raw_event_json,
     )
