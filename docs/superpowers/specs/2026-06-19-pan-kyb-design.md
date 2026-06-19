@@ -121,17 +121,28 @@ async def verify_pan(pan: str) -> PanData | None
 - **Mock-first**, gated by `pan_use_mock` (default `True`): returns mock `PanData` for
   a valid-format PAN, and `None` for a sentinel "not found" PAN, so onboarding runs
   end-to-end with no provider credentials.
-- **Live path:** provider HTTP call. `5xx` → raise `ExternalServiceError` (transient,
-  must not be read as "PAN invalid"); PAN-not-found/`4xx-invalid` → return `None`.
-- The provisional provider contract is documented in the client docstring and
-  confirmed later against real API docs once a token is available.
+- **Live path — Cashfree `POST /verification/pan`** (the chosen provider; self-serve,
+  OTP-free, returns the registered name from the PAN alone). Send `{"pan": ...}` with
+  the two `x-client-*` auth headers; map the response:
+  - non-`200` → raise `ExternalServiceError`. For Cashfree a 4xx/5xx is *our* problem
+    (bad config, auth, IP allowlist, insufficient balance, rate-limit, provider down) —
+    **never** "PAN invalid".
+  - `200` with `valid: false` or `pan_status != "VALID"` → return `None` (PAN does not
+    exist / deactivated). **Note:** a non-existent PAN is reported as `200 + valid:false`,
+    *not* a 4xx — this differs from a naïve "4xx = not found".
+  - `200` with `valid: true` → `PanData(name=registered_name, category=type)`.
+- The contract above is confirmed against Cashfree's published docs; the token-gated
+  live test (below) verifies it end-to-end once credentials exist.
 
-New config (`core/config.py`): `pan_api_key: str = ""`,
-`pan_base_url: str = ""` (set to the chosen provider's base URL when a token lands),
+New config (`core/config.py`): `pan_client_id: str = ""`, `pan_client_secret: str = ""`
+(Cashfree uses two header secrets, not a single bearer key), `pan_base_url: str = ""`
+(`https://sandbox.cashfree.com` for sandbox, `https://api.cashfree.com` for prod),
 `pan_use_mock: bool = True`.
 
-Provider choice (Cashfree / Sandbox / Attestr) is a config swap decided when a token
-lands; all are self-serve.
+Provider is **Cashfree** (decided after comparing Cashfree / Sandbox / Attestr / ClearTax:
+only Cashfree is both self-serve *and* a lookup model that returns the registered name
+from the PAN alone — Sandbox and Attestr-basic require name+DOB+consent and return only
+match booleans; ClearTax is enterprise/sales-led).
 
 ## Onboarding flow (`api/onboarding.py`)
 
@@ -175,7 +186,8 @@ removes the orphan-tenant window.
   - invalid PAN → 4xx, **no tenant row created**.
   - already-onboarded user → `ConflictError`.
 - **Live (token-gated):** `tests/integration/test_pan_live.py`, skipped unless
-  `PAN_API_KEY` is set — run once to confirm the provisional provider contract.
+  `PAN_CLIENT_ID`/`PAN_CLIENT_SECRET` are set — run once to confirm the Cashfree
+  contract end-to-end.
 
 The Auth0 Post-Login Action (email gate) and passwordless login are **not** covered by
 the pytest suite by design — they live in Auth0 config.
@@ -185,6 +197,11 @@ the pytest suite by design — they live in Auth0 config.
 - **Disposable-email-domain blocking** — app-side data file, deferred (YAGNI v1).
 - **Domain-enrichment (Clearbit/PDL)** as a soft manual-review risk signal — not a gate.
 - **PAN name-matching / entity-type filtering** — rejected (breaks sole proprietors).
+- **Trade name + registered address / GSTIN verification** — considered (PAN returns
+  only the legal name, no trade name or address; those live only in the GST registry).
+  Rejected for v1: GSTIN-verify would exclude tenants not registered for GST, and PAN
+  is universal. Revisit only if auto-populating a richer company profile becomes a
+  requirement — at which point GSTIN-verify (also OTP-free, also Cashfree) is the path.
 - **Admin reconciliation** for the VERIFIED-but-enqueue-failed window.
 
 ## Migration note
