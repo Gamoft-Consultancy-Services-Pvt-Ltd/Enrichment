@@ -2,6 +2,7 @@
 
 **Date:** 2026-06-19
 **Status:** Approved (design) — supersedes `2026-06-15-gst-otp-kyb-design.md`
+**Provider:** Sandbox (Quicko) — `POST /kyc/pan/verify`
 **Branch:** fresh `feature/pan-kyb` off `00252d3` — the last commit *before* the
 GST-OTP work began (Serper web-search + the full Phase 1 onboarding stack, with no
 GST code). `main` is at Phase 0 and lacks the onboarding pipeline, so it is **not** a
@@ -12,10 +13,11 @@ a record.
 
 Surepass GST-OTP required a sales call to get credentials, and the OTP round-trip
 added telecom cost and a multi-step state machine. Plan changed to **PAN
-verification without OTP**, which providers expose via self-serve signup and free
-trial credits (Cashfree, Sandbox/Quicko, Attestr — no sales call). PAN-without-OTP
-verifies that an entity is *real* but **not** that the applicant controls it, so the
-anti-abuse weight shifts onto an enforced company-email gate.
+verification without OTP**, which self-serve providers (Sandbox, Cashfree, Attestr)
+expose with immediate signup and no sales call. PAN verification proves the PAN
+exists and (with Sandbox) that the applicant knows the registered name + date of
+birth tied to it; the company-email gate (Auth0) carries the rest of the anti-abuse
+weight.
 
 This is an **anti-abuse ("first bucket") gate**, not compliance-grade KYB.
 
@@ -26,141 +28,155 @@ The gate is a **conjunction** — both must hold to onboard:
 1. **Business-domain email (enforced at Auth0).** The login email's domain must not
    be a free/consumer provider (`gmail.com`, `yahoo.com`, `outlook.com`, …). Login
    is via that same company email, so controlling it is the proof of association.
-2. **Real PAN (existence-only).** The submitted PAN verifies against NSDL. Accepts
-   **individual *and* business** PANs — sole proprietors legitimately operate on a
-   personal PAN (4th char `P`). No entity-type filter, no name match.
+2. **PAN identity match (Sandbox).** The submitted PAN must be **valid/active**, and
+   the **name-as-per-PAN** and **date of birth / incorporation date** the applicant
+   supplies must both match the registry. Accepts **individual *and* business** PANs —
+   sole proprietors legitimately operate on a personal PAN (4th char `P`).
 
-Neither alone is strong; together they raise the bar enough for first-bucket abuse
-deterrence. **No OTP anywhere in this design.**
+Together these raise the bar enough for first-bucket abuse deterrence. **No OTP
+anywhere in this design.**
 
-### Why not stricter PAN checks
+### Why a name + DOB match here (and why it doesn't break sole proprietors)
 
-- **Entity-type filter (reject individual PANs):** rejected — locks out sole
-  proprietors / freelancers / single-person consultancies who have no company PAN.
-- **Name match (PAN registry name vs `company_name`):** rejected — for a sole
-  proprietor the PAN name is the person's name, not the trading name, so it would
-  false-reject exactly the users it should admit.
+Sandbox's PAN API is a *match* API: it **requires** `name_as_per_pan` + `date_of_birth`
+as inputs and returns match booleans (it does not hand back the registry name). We
+gate on those matches (Option A) — otherwise we'd be collecting name + DOB only to
+ignore them.
+
+The earlier objection to name-matching was matching the registry name against the
+**trade name** (which differs for proprietors). We avoid that entirely: we ask the
+applicant for the name **exactly as printed on the PAN** (for a proprietor, their own
+name; for a company, the registered name) and for the PAN's DOB/incorporation date,
+and match *those*. A legitimate applicant knows their own PAN details, so this is
+proprietor-safe. We still do **not** filter on entity type — individual PANs pass.
 
 ### Why the email domain can't be bound to the company
 
-There is **no authoritative email-domain → legal-entity mapping**. Google Workspace
-exposes no public "who owns this domain" lookup; WHOIS/RDAP is GDPR-redacted;
-domain-enrichment APIs (Clearbit/PDL) are best-effort guesses, not proof. So we do
-**not** attempt to match the email domain against the PAN/company name — we rely on
-the conjunction (controls a business domain AND supplied a real PAN).
+There is **no authoritative email-domain → legal-entity mapping** (Google Workspace
+exposes no public ownership lookup; WHOIS/RDAP is GDPR-redacted; enrichment APIs are
+best-effort guesses). So we do **not** try to match the email domain to the PAN; we
+rely on the conjunction above.
 
 ## Login (Auth0 config — no app code)
 
 The app only verifies Auth0-issued JWTs (`auth/token.py`), so login method is an
-Auth0-tenant setting, not app code.
+Auth0-tenant setting.
 
 - **Enable passwordless email** (magic link or email OTP) so any company mailbox
   works regardless of host — Google Workspace, GoDaddy/Microsoft 365, Zoho, etc.
   This also *is* the email-control proof. (Google-only social login would break
-  every non-Google-hosted company mailbox, e.g. GoDaddy/M365 — hence passwordless.)
+  every non-Google-hosted company mailbox.)
 
 ## Email-domain gate (Auth0 Post-Login Action — no app code)
 
 Enforced entirely in Auth0, **not** in application code:
 
 - A **Post-Login Action** inspects `event.user.email`, checks the domain against a
-  **free-provider blocklist** (small, stable, ~dozens of domains), and calls
-  `api.access.deny(...)` to reject the login. Free-email users never receive a
-  token — stopped at the door, not at `/onboarding`.
+  **free-provider blocklist** (small, stable), and calls `api.access.deny(...)`.
+  Free-email users never receive a token — stopped at the door.
 - Because every token is Auth0-minted and signature-verified, a reliably-denying
   Action means no free-email token can exist; an app-side duplicate check is
-  redundant for security and is intentionally **omitted**.
-- (Auth0's built-in "allowed email domains" is an allowlist for known enterprise
-  domains — not usable for blocking a list of free providers — so this must be an
-  Action.)
+  intentionally **omitted**.
 
-**Accepted trade-off:** this rule and its blocklist live in Auth0, outside the repo
-and outside the pytest/TDD/code-review workflow. Accepted for the free-provider
-list because it is small and stable.
-
-**Deferred:** disposable-email-domain blocking. Those lists are thousands of
-domains and churn constantly — awkward inside an Action and YAGNI for v1. If added
-later, that one piece would go **app-side** (data-file-shaped and testable), not in
-Auth0.
+**Deferred:** disposable-email-domain blocking (thousands of churning domains;
+YAGNI v1). If added later it goes **app-side** as a testable data file, not Auth0.
 
 ## Data model (`shared/tenant`)
 
-Fresh branch off `main`, where `tenants` has **no KYB columns**, so a **single new
+Fresh branch off `00252d3`, where `tenants` has **no KYB columns**, so a **single new
 migration** adds (no OTP columns ever exist):
 
 | Column | Type | Notes |
 |---|---|---|
 | `pan` | String, NOT NULL | the submitted PAN |
 | `kyb_status` | String | mirrors `onboarding_status` storage; only `VERIFIED` is persisted by this flow |
-| `kyb_company_data` | JSONB, nullable | NSDL response (name, category) |
+| `kyb_company_data` | JSONB, nullable | the kept verification record: `name`, `category`, `status` |
 | `kyb_verified_at` | DateTime, nullable | set at verification |
 
-Schema changes:
+Schema changes (`TenantCreate`):
 
-- `TenantCreate`: **replace `gstin` with `pan`** — `pan: str` with a `field_validator`
-  that strips/uppercases and matches `^[A-Z]{5}[0-9]{4}[A-Z]$`, raising on mismatch.
+- **`pan: str`** — `field_validator` strips/uppercases and matches `^[A-Z]{5}[0-9]{4}[A-Z]$`.
+- **`pan_holder_name: str`** — name exactly as per the PAN (min 2 chars).
+- **`pan_dob: str`** — `DD/MM/YYYY` (DOB for individuals, incorporation date for
+  companies), validated `^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$`.
+
+`pan_holder_name` / `pan_dob` are verification inputs only. We persist the confirmed
+`name` (inside `kyb_company_data`) but **do not store the raw DOB** (PII minimisation).
+
 - `TenantRead`: expose `pan` and `kyb_status`.
 - `KybStatus` enum (`PENDING / VERIFIED / FAILED`) is retained for the column type
-  and `TenantRead`. In this flow only **VERIFIED** is ever written (verify-then-create
-  means failures never produce a row); `PENDING`/`FAILED` remain available for future
-  admin/suspension use.
+  and `TenantRead`. Only **VERIFIED** is ever written (verify-then-create means
+  failures never produce a row); `PENDING`/`FAILED` remain for future admin use.
 
 `kyb_status` stays a bare `String` column (not `SQLEnum`), matching `onboarding_status`.
 Consumers must compare with `==`, not `is` (DB returns a plain `str`).
 
 ## PAN client (`clients/pan_client.py`)
 
-Single public function:
+Transport + parse only — the **gate policy lives in the kyb module**, not here.
 
 ```python
-async def verify_pan(pan: str) -> PanData | None
+class PanCheck(TypedDict):
+    category: str
+    status: str        # "valid" when the PAN is active
+    name_match: bool
+    dob_match: bool
+
+async def verify_pan(pan: str, name: str, dob: str) -> PanCheck
 ```
 
-- `PanData` is a `TypedDict` (at least `name`, `category`). Convert to `dict[str, Any]`
-  before persisting (mypy strict: TypedDict is not assignable to `dict[str, Any]`).
-- **Mock-first**, gated by `pan_use_mock` (default `True`): returns mock `PanData` for
-  a valid-format PAN, and `None` for a sentinel "not found" PAN, so onboarding runs
-  end-to-end with no provider credentials.
-- **Live path — Cashfree `POST /verification/pan`** (the chosen provider; self-serve,
-  OTP-free, returns the registered name from the PAN alone). Send `{"pan": ...}` with
-  the two `x-client-*` auth headers; map the response:
-  - non-`200` → raise `ExternalServiceError`. For Cashfree a 4xx/5xx is *our* problem
-    (bad config, auth, IP allowlist, insufficient balance, rate-limit, provider down) —
-    **never** "PAN invalid".
-  - `200` with `valid: false` or `pan_status != "VALID"` → return `None` (PAN does not
-    exist / deactivated). **Note:** a non-existent PAN is reported as `200 + valid:false`,
-    *not* a 4xx — this differs from a naïve "4xx = not found".
-  - `200` with `valid: true` → `PanData(name=registered_name, category=type)`.
-- The contract above is confirmed against Cashfree's published docs; the token-gated
-  live test (below) verifies it end-to-end once credentials exist.
+- **Mock-first**, gated by `pan_use_mock` (default `True`): returns a `PanCheck` with
+  `status="valid"` + both matches `True` for any valid-format PAN, and a non-matching
+  `PanCheck` (`status="invalid"`) for the sentinel `"AAAAA0000A"` — so onboarding runs
+  end-to-end with no credentials.
+- **Live path — Sandbox two-step (token then verify):**
+  1. `POST {base}/authenticate` with headers `x-api-key`, `x-api-secret`,
+     `x-api-version: 1.0.0` → `access_token` (a JWT, valid 24h).
+  2. `POST {base}/kyc/pan/verify` with headers `authorization: <token>` (**no `Bearer`
+     prefix**), `x-api-key`, `x-api-version: 1.0.0`, and body
+     `{"@entity": "in.co.sandbox.kyc.pan_verification.request", "pan", "name_as_per_pan",
+     "date_of_birth", "consent": "Y", "reason": "<≥20 chars>"}`.
+  - Non-`200` on either call → `ExternalServiceError` (auth/config/input/`503 Source
+    Unavailable`/provider down — never silently "not verified").
+  - `200` → parse `data.{category, status, name_as_per_pan_match, date_of_birth_match}`
+    into `PanCheck`.
+  - The token is minted **per verify call** (onboarding is low-volume); a 24h token
+    cache is a deferred optimisation.
+- Base URL: `https://test-api.sandbox.co.in` (sandbox) / `https://api.sandbox.co.in`
+  (prod). The token-gated live test confirms the contract once credentials exist.
 
-New config (`core/config.py`): `pan_client_id: str = ""`, `pan_client_secret: str = ""`
-(Cashfree uses two header secrets, not a single bearer key), `pan_base_url: str = ""`
-(`https://sandbox.cashfree.com` for sandbox, `https://api.cashfree.com` for prod),
-`pan_use_mock: bool = True`.
+New config (`core/config.py`): `pan_api_key: str = ""`, `pan_api_secret: str = ""`,
+`pan_base_url: str = ""` (Sandbox base URL), `pan_use_mock: bool = True`.
 
-Provider is **Cashfree** (decided after comparing Cashfree / Sandbox / Attestr / ClearTax:
-only Cashfree is both self-serve *and* a lookup model that returns the registered name
-from the PAN alone — Sandbox and Attestr-basic require name+DOB+consent and return only
-match booleans; ClearTax is enterprise/sales-led).
+## KYB module (`modules/tenant_onboarding/kyb.py`)
+
+Holds the **Option-A gate** so the API never imports `clients/` directly:
+
+```python
+async def verify_pan_kyb(pan: str, name: str, dob: str) -> dict[str, Any] | None
+```
+
+- Calls `pan_client.verify_pan`. **Verified iff** `status == "valid"` **and**
+  `name_match` **and** `dob_match`. On success returns the record to persist:
+  `{"name": name, "category": check["category"], "status": check["status"]}`. Otherwise
+  returns `None`.
 
 ## Onboarding flow (`api/onboarding.py`)
 
-`POST /onboarding` — fully **synchronous, verify-then-create** (no orphan-tenant rows):
+`POST /onboarding` — synchronous, **verify-then-create** (no orphan rows):
 
 1. If `user.tenant_id is not None` → `ConflictError`.
-2. `verify_pan(data.pan)`:
-   - `None` → reject with a 4xx (PAN not verified). **Nothing is created.**
-   - `PanData` → continue.
+2. `verify_pan_kyb(data.pan, data.pan_holder_name, data.pan_dob)`:
+   - `None` → `UnprocessableError` (422). **Nothing is created.**
+   - dict → continue.
 3. `create_tenant(...)` persisting `pan`, `kyb_status=VERIFIED`,
-   `kyb_company_data=dict(pan_data)`, `kyb_verified_at=now`.
+   `kyb_company_data=<record>`, `kyb_verified_at=now`.
 4. `set_user_tenant(session, user, tenant.id)`.
-5. Enqueue `run_onboarding_pipeline` via the ARQ pool.
+5. Enqueue `run_onboarding_pipeline`.
 6. Return `TenantRead`.
 
-**Removed endpoints:** `POST /onboarding/verify-otp`, `/onboarding/resend-otp`,
-`/onboarding/restart-kyb`. A failed PAN is a 4xx response; retry = call `/onboarding`
-again. The email-domain gate is not an endpoint concern (handled at Auth0).
+A failed match is a 422 response; retry = call `/onboarding` again with corrected
+name/DOB. No OTP/resend/restart endpoints.
 
 **Residual window (documented, not built):** if enqueue fails after the tenant is
 created VERIFIED, the pipeline never starts and the endpoint can't self-recover it —
@@ -169,25 +185,23 @@ removes the orphan-tenant window.
 
 ## Service layer (`shared/tenant/service.py`)
 
-- `create_tenant` persists `pan` and the kyb fields directly (tenant is born VERIFIED).
-- **Drop** all OTP service helpers from the GST design (`store_kyb_txn`,
-  `mark_kyb_verified`, `bump_kyb_attempts`, `bump_kyb_resends`, `mark_kyb_failed`,
-  `reset_kyb`) — none have a PAN analog.
+`create_tenant(session, data, *, kyb_company_data: dict[str, Any] | None = None)`
+persists `pan` and, when `kyb_company_data` is given, marks the tenant `VERIFIED` with
+`kyb_verified_at = now`. No OTP helpers.
 
 ## Testing (TDD)
 
 - **Unit:**
-  - `pan_client` mock path — valid PAN → `PanData`; sentinel PAN → `None`; (live-path
-    error mapping covered by construction, exercised live below).
-  - PAN schema validation — accepts/normalizes valid PAN, rejects malformed, requires
-    `pan`.
+  - `pan_client` mock path — valid PAN → `status="valid"` + matches; sentinel → not valid.
+  - `verify_pan_kyb` gate — verified only when status valid AND both matches; returns
+    `None` on a name/DOB/status failure (mock the client).
+  - Schema validation — `pan`, `pan_holder_name`, `pan_dob` accept/reject correctly.
 - **Integration (real Postgres + Redis):**
-  - business flow — valid PAN → tenant persisted `VERIFIED` + job enqueued.
-  - invalid PAN → 4xx, **no tenant row created**.
+  - business flow — valid PAN + matching name/DOB → tenant `VERIFIED` + job enqueued.
+  - failed match → 422, **no tenant row created**.
   - already-onboarded user → `ConflictError`.
 - **Live (token-gated):** `tests/integration/test_pan_live.py`, skipped unless
-  `PAN_CLIENT_ID`/`PAN_CLIENT_SECRET` are set — run once to confirm the Cashfree
-  contract end-to-end.
+  `PAN_API_KEY` is set — confirms the Sandbox two-step contract end-to-end.
 
 The Auth0 Post-Login Action (email gate) and passwordless login are **not** covered by
 the pytest suite by design — they live in Auth0 config.
@@ -196,12 +210,12 @@ the pytest suite by design — they live in Auth0 config.
 
 - **Disposable-email-domain blocking** — app-side data file, deferred (YAGNI v1).
 - **Domain-enrichment (Clearbit/PDL)** as a soft manual-review risk signal — not a gate.
-- **PAN name-matching / entity-type filtering** — rejected (breaks sole proprietors).
-- **Trade name + registered address / GSTIN verification** — considered (PAN returns
-  only the legal name, no trade name or address; those live only in the GST registry).
-  Rejected for v1: GSTIN-verify would exclude tenants not registered for GST, and PAN
-  is universal. Revisit only if auto-populating a richer company profile becomes a
-  requirement — at which point GSTIN-verify (also OTP-free, also Cashfree) is the path.
+- **Entity-type filtering** (rejecting individual PANs) — rejected (breaks sole proprietors).
+- **Trade name + registered address / GSTIN verification** — considered (PAN/Sandbox
+  return neither; those live only in the GST registry). Rejected for v1: GSTIN-verify
+  would exclude tenants not registered for GST, and PAN is universal. Revisit only if
+  auto-populating a richer company profile becomes a requirement.
+- **24h Sandbox token cache** — minted per call for now; optimise if volume warrants.
 - **Admin reconciliation** for the VERIFIED-but-enqueue-failed window.
 
 ## Migration note
