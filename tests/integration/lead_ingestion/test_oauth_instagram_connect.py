@@ -22,6 +22,7 @@ from shared.channels.models import ChannelConnection
 from shared.tenant import service as tenant_service
 from shared.tenant.schemas import BusinessType, TenantCreate
 
+
 async def _make_tenant(session: AsyncSession) -> uuid.UUID:
     tenant = await tenant_service.create_tenant(
         session,

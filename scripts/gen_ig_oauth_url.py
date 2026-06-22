@@ -9,7 +9,11 @@ Prerequisites:
     META_IG_APP_SECRET=<value from Meta → Enrichment-IG app → Settings → Basic>
     BASE_URL=https://lorna-nonutilized-macy.ngrok-free.dev
 """
-import sys, os, uuid
+import os
+import sys
+import uuid
+from urllib.parse import parse_qs, urlparse
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import Settings
@@ -23,7 +27,6 @@ print("Instagram OAuth URL:")
 print(url)
 print()
 print("redirect_uri embedded in URL:")
-from urllib.parse import urlparse, parse_qs
 params = parse_qs(urlparse(url).query)
 print(params.get("redirect_uri", ["?"])[0])
 print()
