@@ -63,7 +63,7 @@ async def verify_pan(pan: str, name: str, dob: str) -> PanCheck:
 
 
 def _mock_verify(pan: str) -> PanCheck:
-    if pan == _MOCK_NOT_FOUND_PAN:
+    if pan == _MOCK_NOT_FOUND_PAN or len(pan) < 4:
         return PanCheck(category="", status="invalid", name_match=False, dob_match=False)
     category = _CATEGORY_BY_TYPE_CHAR.get(pan[3], "other")
     return PanCheck(category=category, status="valid", name_match=True, dob_match=True)

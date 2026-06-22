@@ -167,6 +167,7 @@ async def test_onboarding_marks_tenant_kyb_verified(client: AsyncClient) -> None
 async def test_onboarding_reenqueues_pending_tenant_instead_of_409(
     client: AsyncClient,
 ) -> None:
+    mock_pool = app.dependency_overrides[get_arq_pool]()
     # First call onboards the user (tenant created, status PENDING).
     first = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
     assert first.status_code == 200
@@ -175,3 +176,6 @@ async def test_onboarding_reenqueues_pending_tenant_instead_of_409(
     second = await client.post("/onboarding", headers=_auth(), json=_BUSINESS)
     assert second.status_code == 200
     assert second.json()["kyb_status"] == "VERIFIED"
+    # Both calls must have triggered an enqueue — the recovery branch must actually
+    # re-enqueue, not just return 200 silently.
+    assert mock_pool.enqueue_job.await_count == 2

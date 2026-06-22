@@ -58,6 +58,14 @@ async def test_verify_pan_sentinel_is_not_valid() -> None:
     assert result["name_match"] is False
 
 
+@pytest.mark.usefixtures("_force_mock")
+async def test_verify_pan_too_short_returns_invalid() -> None:
+    # A PAN shorter than 4 chars must not raise IndexError — treated as invalid.
+    result = await verify_pan("ABC", "Whoever", "01/01/2000")
+    assert result["status"] != "valid"
+    assert result["name_match"] is False
+
+
 @pytest.mark.usefixtures("_force_live")
 @respx.mock
 async def test_verify_pan_live_parses_data() -> None:
@@ -84,6 +92,16 @@ async def test_verify_pan_live_parses_data() -> None:
         "name_match": True,
         "dob_match": True,
     }
+
+
+@pytest.mark.usefixtures("_force_live")
+@respx.mock
+async def test_verify_pan_live_authenticate_non_200_raises_generic() -> None:
+    # /authenticate returns 401 -> ExternalServiceError with generic message, no detail leaked.
+    respx.post(f"{_BASE}/authenticate").mock(return_value=httpx.Response(401))
+    with pytest.raises(ExternalServiceError) as exc_info:
+        await verify_pan("AAACX1234C", "Gamoft", "01/04/2019")
+    assert str(exc_info.value) == _GENERIC_ERROR
 
 
 @pytest.mark.usefixtures("_force_live")
