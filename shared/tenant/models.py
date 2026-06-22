@@ -6,13 +6,15 @@ shared.tenant.schemas. Enums are defined in schemas.py and reused here.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, String, Uuid, func
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
-from shared.tenant.schemas import BusinessType, OnboardingStatus, TenantStatus
+from shared.tenant.schemas import BusinessType, KybStatus, OnboardingStatus, TenantStatus
 
 
 class Tenant(Base):
@@ -48,3 +50,11 @@ class Tenant(Base):
         onupdate=func.now(),
     )
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pan: Mapped[str] = mapped_column(String, nullable=False)
+    kyb_status: Mapped[KybStatus] = mapped_column(
+        String, nullable=False, default=KybStatus.PENDING
+    )
+    kyb_company_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    kyb_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

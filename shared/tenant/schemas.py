@@ -124,6 +124,8 @@ class TenantRead(BaseModel):
     primary_contact_email: EmailStr
     business_type: BusinessType
     website_url: str
+    pan: str
+    kyb_status: KybStatus
     onboarding_status: OnboardingStatus
     status: TenantStatus
     timezone: str

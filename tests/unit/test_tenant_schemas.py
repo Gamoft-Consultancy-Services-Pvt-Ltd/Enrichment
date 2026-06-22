@@ -135,6 +135,12 @@ def test_tenant_create_rejects_malformed_dob() -> None:
         TenantCreate(**data, pan=_VALID_PAN)
 
 
+def test_tenant_read_exposes_pan_and_kyb_status() -> None:
+    fields = TenantRead.model_fields
+    assert "pan" in fields
+    assert "kyb_status" in fields
+
+
 def test_tenant_read_builds_from_orm_like_object() -> None:
     obj = SimpleNamespace(
         id=uuid4(),
@@ -143,6 +149,8 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
         primary_contact_email="asha@gamoft.com",
         business_type=BusinessType.B2B,
         website_url="https://gamoft.com",
+        pan="AAACX1234C",
+        kyb_status=KybStatus.PENDING,
         onboarding_status=OnboardingStatus.PENDING,
         status=TenantStatus.CREATED,
         timezone="UTC",
@@ -156,3 +164,5 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
     assert read.status is TenantStatus.CREATED
     assert read.onboarding_status is OnboardingStatus.PENDING
     assert read.activated_at is None
+    assert read.pan == "AAACX1234C"
+    assert read.kyb_status == KybStatus.PENDING

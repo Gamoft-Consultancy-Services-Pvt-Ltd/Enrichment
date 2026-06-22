@@ -24,6 +24,10 @@ def test_tenant_has_the_expected_columns() -> None:
         "created_at",
         "updated_at",
         "activated_at",
+        "pan",
+        "kyb_status",
+        "kyb_company_data",
+        "kyb_verified_at",
     }
 
 
@@ -32,3 +36,10 @@ def test_id_is_primary_key_and_activated_at_is_nullable() -> None:
     assert table.c.id.primary_key is True
     assert table.c.activated_at.nullable is True
     assert table.c.company_name.nullable is False
+
+
+def test_tenant_model_has_pan_and_kyb_columns() -> None:
+    from shared.tenant.models import Tenant
+
+    cols = set(Tenant.__table__.columns.keys())
+    assert {"pan", "kyb_status", "kyb_company_data", "kyb_verified_at"} <= cols

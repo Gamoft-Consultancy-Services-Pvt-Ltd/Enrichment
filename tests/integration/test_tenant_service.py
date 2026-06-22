@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import ConflictError, NotFoundError
 from shared.tenant import service
-from shared.tenant.schemas import BusinessType, TenantCreate, TenantStatus
+from shared.tenant.schemas import BusinessType, KybStatus, TenantCreate, TenantStatus
 
 
 def _sample_create() -> TenantCreate:
@@ -70,3 +70,18 @@ async def test_is_active_reflects_status(session: AsyncSession) -> None:
 
     activated = await service.activate_tenant(session, created.id)
     assert service.is_active(activated) is True
+
+
+async def test_create_tenant_persists_pan_and_pending_kyb(session: AsyncSession) -> None:
+    tenant = await service.create_tenant(session, _sample_create())
+    assert tenant.pan == "AAACX1234C"
+    assert tenant.kyb_status == KybStatus.PENDING  # == not is (String column)
+    assert tenant.kyb_verified_at is None
+
+
+async def test_create_tenant_with_company_data_is_verified(session: AsyncSession) -> None:
+    company = {"name": "Gamoft", "category": "company", "status": "valid"}
+    tenant = await service.create_tenant(session, _sample_create(), kyb_company_data=company)
+    assert tenant.kyb_status == KybStatus.VERIFIED
+    assert tenant.kyb_company_data == company
+    assert tenant.kyb_verified_at is not None
