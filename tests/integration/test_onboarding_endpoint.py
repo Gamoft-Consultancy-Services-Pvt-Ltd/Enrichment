@@ -30,6 +30,10 @@ _BUSINESS = {
     "website_url": "https://acme.com",
     "timezone": "UTC",
     "language_preference": "en",
+    "pan": "AAACX1234C",
+    "pan_holder_name": "Acme Private Limited",
+    "pan_dob": "01/04/2019",
+    "consent": True,
 }
 
 

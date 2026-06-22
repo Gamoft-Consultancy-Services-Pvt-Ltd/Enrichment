@@ -47,6 +47,10 @@ async def _make_tenant(session: AsyncSession) -> UUID:
             primary_contact_email="asha@gamoft.com",
             business_type=BusinessType.B2B,
             website_url="https://gamoft.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Gamoft Consultancy Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     return tenant.id
