@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     channel_credentials_encryption_key: str = ""
     meta_app_id: str = ""
     meta_app_secret: str = ""
+    # Instagram Business Login uses a separate linked app with its own credentials.
+    meta_ig_app_id: str = ""
+    meta_ig_app_secret: str = ""
     meta_webhook_verify_token: str = ""
     meta_graph_api_version: str = "v21.0"
     meta_embedded_signup_config_id: str = ""

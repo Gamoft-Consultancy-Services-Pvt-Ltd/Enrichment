@@ -7,6 +7,7 @@ Sprint 4: OAuth initiation + callbacks for Facebook, Instagram, WhatsApp Embedde
 
 import json
 from typing import Annotated, Any
+from uuid import UUID
 
 from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile
@@ -27,6 +28,7 @@ from modules.lead_ingestion.service import (
     exchange_facebook_code,
     exchange_instagram_code,
     exchange_whatsapp_signup_code,
+    get_channel_connection,
     get_connection_by_page_or_ig_account_id,
     get_whatsapp_connection_by_phone_number_id,
     handle_file_upload,
@@ -140,11 +142,23 @@ async def _route_facebook_instagram(
     session: AsyncSession,
     arq_pool: ArqRedis,
 ) -> dict[str, str]:
-    """Route a Facebook (page) or Instagram webhook event by page_id / ig_account_id."""
+    """Route a Facebook (page) or Instagram webhook event by page_id / ig_account_id.
+
+    Branches on the change field: 'leadgen' events go to _route_lead_ad;
+    all other events (messages) follow the existing DM path.
+    """
     try:
         account_id: str = payload["entry"][0]["id"]
     except (KeyError, IndexError):
         return {"status": "ignored"}
+
+    try:
+        change_field: str = payload["entry"][0]["changes"][0]["field"]
+    except (KeyError, IndexError):
+        change_field = ""
+
+    if change_field == "leadgen":
+        return await _route_lead_ad(payload, account_id, session, arq_pool)
 
     connection = await get_connection_by_page_or_ig_account_id(session, account_id)
     if connection is None:
@@ -162,6 +176,35 @@ async def _route_facebook_instagram(
         {
             "tenant_id": str(connection.tenant_id),
             "channel_connection_id": str(connection.id),
+            "raw_payload": payload,
+        },
+    )
+    return {"status": "received"}
+
+
+async def _route_lead_ad(
+    payload: dict[str, Any],
+    page_id: str,
+    session: AsyncSession,
+    arq_pool: ArqRedis,
+) -> dict[str, str]:
+    """Route a Facebook Lead Ads leadgen event by page_id."""
+    try:
+        leadgen_id: str = payload["entry"][0]["changes"][0]["value"]["leadgen_id"]
+    except (KeyError, IndexError):
+        return {"status": "ignored"}
+
+    connection = await get_connection_by_page_or_ig_account_id(session, page_id)
+    if connection is None:
+        await log_unroutable_event(session, f"leadgen-{leadgen_id}", "FACEBOOK_LEAD_ADS", payload)
+        return {"status": "unknown_connection"}
+
+    await arq_pool.enqueue_job(
+        "run_lead_ad_capture",
+        {
+            "tenant_id": str(connection.tenant_id),
+            "channel_connection_id": str(connection.id),
+            "leadgen_id": leadgen_id,
             "raw_payload": payload,
         },
     )
@@ -192,6 +235,33 @@ async def upload_leads(
         session=session,
         arq_pool=arq_pool,
     )
+
+
+# ---------------------------------------------------------------------------
+# Channel connection status
+# ---------------------------------------------------------------------------
+
+
+@router.get("/connections/{connection_id}/status")
+async def get_connection_status(
+    connection_id: UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict[str, Any]:
+    """Return the status of a ChannelConnection owned by the current tenant."""
+    conn = await get_channel_connection(session, connection_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="connection_not_found")
+    # Tenants can only see their own connections; platform_admin (tenant_id=None) sees all.
+    if user.tenant_id is not None and conn.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="forbidden")
+    return {
+        "connection_id": str(conn.id),
+        "channel_type": conn.channel_type,
+        "status": conn.status,
+        "metadata": conn.connection_metadata or {},
+        "expires_at": conn.expires_at.isoformat() if conn.expires_at else None,
+    }
 
 
 # ---------------------------------------------------------------------------

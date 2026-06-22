@@ -3,6 +3,7 @@
 Sprint 2: file-row adapter.
 Sprint 3: WhatsApp DM adapter.
 Sprint 4: Instagram DM adapter, Facebook DM adapter.
+Sprint 5: Facebook Lead Ads form adapter.
 """
 
 import hashlib
@@ -13,6 +14,9 @@ from uuid import UUID
 from modules.lead_ingestion.schemas.lead_form import STANDARD_FIELD_MAP
 from modules.lead_ingestion.schemas.normalised_event import NormalisedChannelEvent
 from shared.events.schemas import LeadSource
+
+# Case-insensitive version of STANDARD_FIELD_MAP for CSV/XLSX header matching.
+_FIELD_MAP_LOWER: dict[str, str] = {k.lower(): v for k, v in STANDARD_FIELD_MAP.items()}
 
 
 def normalise_whatsapp_message(
@@ -81,7 +85,7 @@ def normalise_file_row(
         str_value = str(value).strip() if value is not None else ""
         if not str_value:
             continue
-        target = STANDARD_FIELD_MAP.get(header)
+        target = _FIELD_MAP_LOWER.get(header.strip().lower())
         if target is not None and target not in canonical:
             canonical[target] = str_value
         elif target is None:
@@ -176,6 +180,63 @@ def normalise_facebook_dm(
         phone=None,  # Facebook DMs do not expose phone numbers in webhook
         raw_text=raw_text,
         raw_event_json=payload,
+    )
+
+
+def normalise_lead_ad_form(
+    field_data: list[dict[str, Any]],
+    *,
+    leadgen_id: str,
+    tenant_id: UUID,
+    channel_connection_id: UUID | None = None,
+    raw_event_json: dict[str, Any] | None = None,
+) -> NormalisedChannelEvent:
+    """Convert Meta Lead Ads field_data to NormalisedChannelEvent.
+
+    field_data is the list returned by GET /{leadgen_id}?fields=field_data.
+    Each item is {"name": "<field>", "values": ["<value>"]}.
+    Bypasses the two-stage LLM filter — caller must use run_capture directly.
+    """
+    flat: dict[str, str] = {}
+    for item in field_data:
+        name = str(item.get("name", "")).lower()
+        values: list[Any] = item.get("values", [])
+        value = str(values[0]).strip() if values else ""
+        if value:
+            flat[name] = value
+
+    full_name: str | None = flat.get("full_name")
+    if full_name is None:
+        first = flat.get("first_name", "")
+        last = flat.get("last_name", "")
+        combined = f"{first} {last}".strip()
+        full_name = combined or None
+
+    email_raw = flat.get("email")
+    email: str | None = email_raw.lower() if email_raw else None
+    phone: str | None = flat.get("phone_number") or flat.get("work_phone_number")
+
+    _location_fields = {"city", "state", "zip_code", "postal_code", "country"}
+    location_parts = [flat[f] for f in _location_fields if f in flat]
+    location: str | None = ", ".join(location_parts) or None
+
+    _consumed = (
+        {"full_name", "first_name", "last_name", "email", "phone_number", "work_phone_number"}
+        | _location_fields
+    )
+    extra: dict[str, Any] = {k: v for k, v in flat.items() if k not in _consumed}
+
+    return NormalisedChannelEvent(
+        tenant_id=tenant_id,
+        channel_connection_id=channel_connection_id,
+        source=LeadSource.FACEBOOK_LEAD_ADS,
+        platform_event_id=f"leadgen-{leadgen_id}",
+        full_name=full_name,
+        phone=phone,
+        email=email,
+        location=location,
+        raw_event_json=raw_event_json or {"leadgen_id": leadgen_id, "field_data": field_data},
+        extra_fields=extra,
     )
 
 
