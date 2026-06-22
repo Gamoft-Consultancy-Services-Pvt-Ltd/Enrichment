@@ -3,7 +3,11 @@
 Run:  uv run python scripts/gen_fb_oauth_url.py
 Outputs the URL to navigate to in Playwright for Phase 11 E2E test.
 """
-import sys, os, uuid
+import os
+import sys
+import uuid
+from urllib.parse import parse_qs, urlparse
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import Settings
@@ -20,6 +24,5 @@ print("Facebook OAuth URL:")
 print(url)
 print()
 print("redirect_uri embedded in URL:")
-from urllib.parse import urlparse, parse_qs
 params = parse_qs(urlparse(url).query)
 print(params.get("redirect_uri", ["?"])[0])
