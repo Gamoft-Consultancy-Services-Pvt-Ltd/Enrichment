@@ -1,6 +1,9 @@
 """Application entry point. Builds the FastAPI app and exposes /health, /me, /onboarding."""
 
+import pathlib
+
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from api.lead_ingestion import router as lead_ingestion_router
 from api.me import router as me_router
@@ -34,3 +37,10 @@ app.include_router(lead_ingestion_router, prefix="/channels")
 async def health() -> dict[str, str]:
     """Health check endpoint used by Docker, CI, and load balancers."""
     return {"status": "ok"}
+
+
+@app.get("/dev-tools/whatsapp-test", response_class=HTMLResponse, include_in_schema=False)
+async def whatsapp_dev_test() -> HTMLResponse:
+    """Serve the WhatsApp Embedded Signup dev test page (dev use only)."""
+    html = (pathlib.Path(__file__).resolve().parent / "dev_tools" / "embedded_signup_test.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
