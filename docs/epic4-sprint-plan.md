@@ -30,7 +30,7 @@ The original spec was written for a multi-team setup involving TypeScript/Innges
 | Sprint 2 — Core Pipeline + File Upload | ✅ Done | File upload + idempotency tests pass |
 | Sprint 3 — WhatsApp DM End-to-End | ✅ Done | Golden path + noise integration tests pass |
 | Sprint 4 — Meta OAuth + Lead Ads | ✅ Done | OAuth state tests + Lead Ad golden path pass |
-| Sprint 5 — Router + Final Wiring | ⬜ Not started | `make ci` fully green |
+| Sprint 5 — Router + Final Wiring | ✅ Done | `make ci` fully green |
 
 Update status to ✅ Done / 🔄 In Progress as you go.
 

@@ -2,7 +2,9 @@
 
 Run:  uv run python scripts/fix_fb_credentials.py
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CONNECTION_ID  = "da2e7fcd-0a2a-4809-bc70-7d3eeac6ca2c"
@@ -16,7 +18,10 @@ PAGE_TOKEN     = (
 )
 
 if __name__ == "__main__":
-    import base64, json, os as _os
+    import base64
+    import json
+    import os as _os
+
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     enc_key_b64 = "yYA-YOw2Rox-1v236MeQeJTt8V4kY9D0ox9t_Tjsm70="
