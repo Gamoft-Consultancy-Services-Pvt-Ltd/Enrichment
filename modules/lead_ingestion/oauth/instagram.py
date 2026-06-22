@@ -48,11 +48,11 @@ def build_instagram_auth_url(tenant_id: uuid.UUID, *, settings: Settings) -> str
     """Build the Instagram OAuth redirect URL with an HMAC-signed state parameter."""
     state = sign_state(
         {"tenant_id": str(tenant_id), "channel": "instagram"},
-        secret=settings.meta_app_secret,
+        secret=settings.meta_ig_app_secret,
     )
     redirect_uri = f"{settings.base_url}/channels/oauth/instagram/callback"
     params = {
-        "client_id": settings.meta_app_id,
+        "client_id": settings.meta_ig_app_id,
         "redirect_uri": redirect_uri,
         "scope": _SCOPES,
         "response_type": "code",
@@ -74,8 +74,8 @@ async def _exchange_code_for_short_lived(
         resp = await client.post(
             _TOKEN_BASE,
             data={
-                "client_id": settings.meta_app_id,
-                "client_secret": settings.meta_app_secret,
+                "client_id": settings.meta_ig_app_id,
+                "client_secret": settings.meta_ig_app_secret,
                 "grant_type": "authorization_code",
                 "redirect_uri": redirect_uri,
                 "code": code,
@@ -98,14 +98,12 @@ async def _exchange_short_for_long_lived(
     """
     import httpx
 
-    version = settings.meta_graph_api_version
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{_GRAPH_BASE}/{version}/oauth/access_token",
+            f"{_GRAPH_BASE}/access_token",
             params={
                 "grant_type": "ig_exchange_token",
-                "client_id": settings.meta_app_id,
-                "client_secret": settings.meta_app_secret,
+                "client_secret": settings.meta_ig_app_secret,
                 "access_token": short_lived,
             },
         )
@@ -187,7 +185,7 @@ async def exchange_instagram_code(
         ChannelApiError: if any Graph API call fails.
     """
     try:
-        state_data = verify_state(state, secret=settings.meta_app_secret)
+        state_data = verify_state(state, secret=settings.meta_ig_app_secret)
     except OAuthStateError:
         raise
 

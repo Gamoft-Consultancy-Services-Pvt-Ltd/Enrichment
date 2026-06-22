@@ -42,6 +42,8 @@ _SCOPES = ",".join(
         "pages_manage_metadata",
         "pages_messaging",
         "pages_read_engagement",
+        "pages_manage_ads",
+        "leads_retrieval",
         "instagram_manage_messages",
         "instagram_basic",
     ]
@@ -156,7 +158,7 @@ async def _subscribe_page_webhooks(
         resp = await client.post(
             f"{_GRAPH_BASE}/{version}/{page_id}/subscribed_apps",
             params={
-                "subscribed_fields": "messages",
+                "subscribed_fields": "messages,leadgen",
                 "access_token": page_token,
             },
         )

@@ -7,7 +7,7 @@ from shared.events.schemas import LeadSource
 
 @pytest.mark.parametrize(
     "value",
-    ["FACEBOOK", "FILE_UPLOAD"],
+    ["FACEBOOK", "FACEBOOK_LEAD_ADS", "FILE_UPLOAD"],
 )
 def test_new_lead_source_values_present(value: str) -> None:
     assert LeadSource(value).value == value

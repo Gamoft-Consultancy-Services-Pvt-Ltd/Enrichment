@@ -29,9 +29,8 @@ The original spec was written for a multi-team setup involving TypeScript/Innges
 | Sprint 1 — Foundation | ✅ Done | `make test-unit` + migration applies |
 | Sprint 2 — Core Pipeline + File Upload | ✅ Done | File upload + idempotency tests pass |
 | Sprint 3 — WhatsApp DM End-to-End | ✅ Done | Golden path + noise integration tests pass |
-| Sprint 4 — Meta OAuth + Lead Ads | ⬜ Not started | OAuth state tests + Lead Ad golden path pass |
-| Sprint 5 — Email + Sheets | ⬜ Not started | Email + Sheets integration tests pass |
-| Sprint 6 — Router + Final Wiring | ⬜ Not started | `make ci` fully green |
+| Sprint 4 — Meta OAuth + Lead Ads | ✅ Done | OAuth state tests + Lead Ad golden path pass |
+| Sprint 5 — Router + Final Wiring | ⬜ Not started | `make ci` fully green |
 
 Update status to ✅ Done / 🔄 In Progress as you go.
 
@@ -333,57 +332,7 @@ make typecheck
 
 ---
 
-## Sprint 5 — Email + Sheets
-
-**Goal:** Email inbound and Google Sheets polling flow through the same preflight→dedup→capture pipeline built in Sprint 2. Neither calls the two-stage filter.
-
-### Files to create
-
-```
-modules/lead_ingestion/
-├── email_inbound.py       Sender allowlist + subject keyword filter; structural template parse
-└── sheets_poller.py       Service account poll; watermark-based delta; 15-min ARQ cron
-```
-
-### Normaliser extensions
-
-Add adapters to `normaliser.py` for: email, sheets row.
-
-### Key rules
-
-**`sheets_poller.py`:**
-- Read watermark from `channel_connection.metadata->>'last_watermark'`
-- Fetch rows newer than watermark using Google Sheets API (service account JSON from `credentials_encrypted`)
-- Update watermark after successful batch — not before
-
-**`email_inbound.py`:**
-- Check sender against `tenant_config`-stored allowlist
-- Check subject against keyword list
-- Parse body using structural template from `LeadFormFieldMap`
-- No LLM call
-
-### HITL required before sheets_poller tests pass
-
-1. Go to Google Cloud Console → enable Sheets API + Drive API
-2. Create service account, download JSON key
-3. Share target Sheet with service account email (Viewer)
-4. Store JSON key in `ChannelConnection.credentials_encrypted` for the test tenant
-
-### Tests to write
-
-- `tests/integration/lead_ingestion/test_email_golden_path.py` — valid sender + matching subject → Lead `pipeline_stage=captured`; blocked sender → no Lead created
-- `tests/integration/lead_ingestion/test_sheets_poller.py` — watermark advances after batch; rows already seen are not re-ingested
-
-### Sprint 5 Gate
-
-```bash
-pytest tests/integration/lead_ingestion/test_email_golden_path.py tests/integration/lead_ingestion/test_sheets_poller.py -v
-make typecheck
-```
-
----
-
-## Sprint 6 — Router + Final Wiring
+## Sprint 5 — Router + Final Wiring
 
 **Goal:** All endpoints registered, all ARQ jobs registered, `make ci` fully green.
 
@@ -400,18 +349,18 @@ api/lead_ingestion.py        Complete all routes (extends partials from Sprints 
 
 workers/jobs/lead_ingestion.py   Complete all job wrappers (extends partials from Sprints 2 & 3):
                                    run_lead_capture, run_lead_capture_batch,
-                                   refresh_instagram_tokens, poll_sheets
+                                   refresh_instagram_tokens
 ```
 
 ### Existing files to modify
 
 | File | Change |
 |---|---|
-| `workers/worker.py` | Register remaining jobs: `refresh_instagram_tokens`, `poll_sheets`; add retry policy (1 retry → dead-letter) |
+| `workers/worker.py` | Register remaining jobs: `refresh_instagram_tokens`; add retry policy (1 retry → dead-letter) |
 | `main.py` | `app.include_router(lead_ingestion_router, prefix="/channels")` (full router, replaces partials) |
 | `tests/integration/conftest.py` | Import `shared.channels.models` and `modules.lead_ingestion.db.models` so truncation sweep covers new tables |
 
-### Sprint 6 Gate
+### Sprint 5 Gate
 
 ```bash
 make ci   # lint + typecheck + full test suite
