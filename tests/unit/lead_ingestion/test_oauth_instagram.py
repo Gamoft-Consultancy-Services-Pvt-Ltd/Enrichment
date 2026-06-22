@@ -19,8 +19,8 @@ _SECRET = "test-instagram-secret-0123456789ab"
 
 def _settings() -> MagicMock:
     s = MagicMock()
-    s.meta_app_id = "test-app-id"
-    s.meta_app_secret = _SECRET
+    s.meta_ig_app_id = "test-ig-app-id"
+    s.meta_ig_app_secret = _SECRET
     s.meta_graph_api_version = "v21.0"
     s.base_url = "https://example.ngrok.io"
     s.channel_credentials_encryption_key = "dGVzdGtleV90ZXN0a2V5X3Rlc3RrZXlfdGVzdA=="

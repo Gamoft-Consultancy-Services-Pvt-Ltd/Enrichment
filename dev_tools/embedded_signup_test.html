@@ -23,7 +23,7 @@
   <div class="warning">
     Meta App ID: <strong>1494580908551596</strong><br>
     Config ID: <strong>1311452217634130</strong><br>
-    Backend: <strong>http://localhost:8000</strong>
+    Backend: <strong>https://lorna-nonutilized-macy.ngrok-free.dev</strong>
   </div>
 
   <label for="jwt">Paste your Bearer JWT (from Swagger /docs → Authorize):</label><br><br>
@@ -80,7 +80,7 @@
     async function postToBackend(code, jwt) {
       const statusEl = document.getElementById('status');
       try {
-        const res = await fetch('http://localhost:8000/channels/embedded-signup/callback', {
+        const res = await fetch('https://lorna-nonutilized-macy.ngrok-free.dev/channels/embedded-signup/callback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

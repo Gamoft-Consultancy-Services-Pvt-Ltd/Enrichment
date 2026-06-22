@@ -9,6 +9,7 @@ import pytest
 from modules.lead_ingestion.exceptions import ChannelApiError, OAuthStateError
 from modules.lead_ingestion.oauth.facebook import (
     _fetch_connected_ig_account,
+    _subscribe_page_webhooks,
     build_facebook_auth_url,
     exchange_facebook_code,
 )
@@ -52,6 +53,12 @@ def test_build_url_contains_instagram_scopes() -> None:
     url = build_facebook_auth_url(uuid.uuid4(), settings=_settings())
     assert "instagram_manage_messages" in url
     assert "instagram_basic" in url
+
+
+def test_build_url_contains_lead_ads_scopes() -> None:
+    url = build_facebook_auth_url(uuid.uuid4(), settings=_settings())
+    assert "leads_retrieval" in url
+    assert "pages_manage_ads" in url
 
 
 def test_build_url_callback_in_redirect_uri() -> None:
@@ -394,3 +401,27 @@ async def test_exchange_code_api_failure_raises_channel_api_error() -> None:
     ):
         with pytest.raises(ChannelApiError):
             await exchange_facebook_code("code", state, session=session, settings=s)
+
+
+# ---------------------------------------------------------------------------
+# _subscribe_page_webhooks — leadgen field included
+# ---------------------------------------------------------------------------
+
+
+async def test_subscribe_page_includes_leadgen_in_subscribed_fields() -> None:
+    s = _settings()
+    mock_response = MagicMock()
+    mock_response.is_success = True
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        await _subscribe_page_webhooks("page-1", "page-tok", settings=s)
+
+    params = mock_client.post.call_args[1]["params"]
+    subscribed = params["subscribed_fields"]
+    assert "messages" in subscribed
+    assert "leadgen" in subscribed
