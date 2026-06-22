@@ -4,12 +4,14 @@ For each message, shows the RAW Groq response (before calibration) and
 the final FilterResult (after calibration).
 Run:  uv run python scripts/probe_calibration.py
 """
-import asyncio, sys, os
+import asyncio
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from clients.groq_client import classify_message
 from modules.lead_ingestion.two_stage_filter import run_filter
-from modules.lead_ingestion.schemas.filter_result import FilterClassification
 
 MESSAGES = [
     "I've been a customer before, might be interested again",

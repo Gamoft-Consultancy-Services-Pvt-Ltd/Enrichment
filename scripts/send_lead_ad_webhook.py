@@ -3,7 +3,10 @@
 Used when ngrok is offline and Meta cannot reach the registered webhook URL.
 Run:  uv run python scripts/send_lead_ad_webhook.py
 """
-import json, hmac, hashlib, urllib.request
+import hashlib
+import hmac
+import json
+import urllib.request
 
 APP_SECRET = "8a7ad9d320e984b58ecd57000a7eb799"
 LEADGEN_ID = "861013726626370"
