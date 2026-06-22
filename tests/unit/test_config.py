@@ -51,8 +51,13 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
 
 
-def test_auth0_settings_have_sensible_defaults() -> None:
+def test_auth0_settings_have_sensible_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auth0 settings default to empty domain/audience, RS256, the claim namespace."""
+    monkeypatch.delenv("AUTH0_DOMAIN", raising=False)
+    monkeypatch.delenv("AUTH0_AUDIENCE", raising=False)
+    monkeypatch.delenv("AUTH0_ALGORITHMS", raising=False)
+    monkeypatch.delenv("AUTH_CLAIM_NAMESPACE", raising=False)
+
     settings = build_settings()
 
     assert settings.auth0_domain == ""
