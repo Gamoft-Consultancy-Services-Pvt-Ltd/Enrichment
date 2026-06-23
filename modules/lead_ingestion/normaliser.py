@@ -220,10 +220,14 @@ def normalise_lead_ad_form(
     location_parts = [flat[f] for f in _location_fields if f in flat]
     location: str | None = ", ".join(location_parts) or None
 
-    _consumed = (
-        {"full_name", "first_name", "last_name", "email", "phone_number", "work_phone_number"}
-        | _location_fields
-    )
+    _consumed = {
+        "full_name",
+        "first_name",
+        "last_name",
+        "email",
+        "phone_number",
+        "work_phone_number",
+    } | _location_fields
     extra: dict[str, Any] = {k: v for k, v in flat.items() if k not in _consumed}
 
     return NormalisedChannelEvent(

@@ -212,7 +212,5 @@ async def test_lead_ad_redelivery_is_idempotent(session: AsyncSession) -> None:
     assert received1 is not None
     assert received2 is None  # no duplicate LeadReceived
 
-    leads = (
-        await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))
-    ).scalars().all()
+    leads = (await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))).scalars().all()
     assert len(leads) == 1
