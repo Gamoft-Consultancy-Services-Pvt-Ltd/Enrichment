@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     serper_api_key: str = ""
 
+    # Langfuse (self-hosted AI observability). Empty keys disable tracing entirely.
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "http://langfuse:3000"
+
     # PAN KYB verification via Sandbox/Quicko (clients/pan_client.py). Mock path is
     # on by default so onboarding runs with no provider credentials; flip
     # pan_use_mock off and set the Sandbox key/secret + base URL once available.

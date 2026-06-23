@@ -92,3 +92,28 @@ def test_pan_settings_defaults() -> None:
     assert settings.pan_api_key == ""
     assert settings.pan_api_secret == ""
     assert settings.pan_base_url == ""
+
+
+def test_settings_langfuse_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Langfuse keys default to empty (tracing disabled); host to the Docker service."""
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_HOST", raising=False)
+
+    settings = build_settings()
+
+    assert settings.langfuse_public_key == ""
+    assert settings.langfuse_secret_key == ""
+    assert settings.langfuse_host == "http://langfuse:3000"
+
+
+def test_settings_langfuse_overridable() -> None:
+    settings = build_settings(
+        langfuse_public_key="pk-lf-test",
+        langfuse_secret_key="sk-lf-test",
+        langfuse_host="http://localhost:3000",
+    )
+
+    assert settings.langfuse_public_key == "pk-lf-test"
+    assert settings.langfuse_secret_key == "sk-lf-test"
+    assert settings.langfuse_host == "http://localhost:3000"
