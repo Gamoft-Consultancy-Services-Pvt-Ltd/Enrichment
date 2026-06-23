@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
+from langfuse.decorators import langfuse_context, observe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from clients.serper_client import search_site_pages
@@ -16,8 +17,14 @@ from shared.tenant_config.schemas import TenantConfigCreate
 from shared.tenant_config.service import create_active
 
 
+@observe(capture_input=False)
 async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
     """Run the full onboarding pipeline: website fetch → 3 agents → activate."""
+    langfuse_context.update_current_trace(
+        name="tenant-onboarding",
+        metadata={"tenant_id": str(tenant_id)},
+        tags=[str(tenant_id)],
+    )
     await set_onboarding_status(session, tenant_id, OnboardingStatus.RUNNING)
     try:
         tenant = await get_tenant(session, tenant_id)
