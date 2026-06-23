@@ -36,9 +36,10 @@ async def run(business_profile: dict[str, Any]) -> dict[str, Any]:
         f"Based on this business profile, define who their ideal customer is. "
         f"Be specific and actionable."
     )
-    return await call_with_tool(
+    result: dict[str, Any] = await call_with_tool(
         prompt=prompt,
         tool_name=_TOOL_NAME,
         tool_description=_TOOL_DESCRIPTION,
         input_schema=_INPUT_SCHEMA,
     )
+    return result

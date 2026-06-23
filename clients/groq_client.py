@@ -58,14 +58,16 @@ async def call_with_tool(
         raise ExternalServiceError("Groq returned no tool_call in response")
 
     result: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    usage = (
+        {"input": response.usage.prompt_tokens, "output": response.usage.completion_tokens}
+        if response.usage is not None
+        else None
+    )
     langfuse_context.update_current_observation(
         name=tool_name,
         model=model,
         input=prompt,
         output=result,
-        usage={
-            "input": response.usage.prompt_tokens,
-            "output": response.usage.completion_tokens,
-        },
+        usage=usage,
     )
     return result
