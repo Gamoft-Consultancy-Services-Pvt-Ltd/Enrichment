@@ -51,8 +51,13 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
 
 
-def test_auth0_settings_have_sensible_defaults() -> None:
+def test_auth0_settings_have_sensible_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auth0 settings default to empty domain/audience, RS256, the claim namespace."""
+    monkeypatch.delenv("AUTH0_DOMAIN", raising=False)
+    monkeypatch.delenv("AUTH0_AUDIENCE", raising=False)
+    monkeypatch.delenv("AUTH0_ALGORITHMS", raising=False)
+    monkeypatch.delenv("AUTH_CLAIM_NAMESPACE", raising=False)
+
     settings = build_settings()
 
     assert settings.auth0_domain == ""
@@ -78,3 +83,12 @@ def test_settings_serper_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPat
     monkeypatch.delenv("SERPER_API_KEY", raising=False)
     settings = build_settings()
     assert settings.serper_api_key == ""
+
+
+def test_pan_settings_defaults() -> None:
+    """PAN verification defaults to the mock path with no credentials."""
+    settings = build_settings()
+    assert settings.pan_use_mock is True
+    assert settings.pan_api_key == ""
+    assert settings.pan_api_secret == ""
+    assert settings.pan_base_url == ""

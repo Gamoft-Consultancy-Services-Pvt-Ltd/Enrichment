@@ -41,3 +41,9 @@ class ExternalServiceError(AppError):
     """An upstream external service (a clients/ wrapper) failed."""
 
     status_code = 502
+
+
+class UnprocessableError(AppError):
+    """The request is well-formed but cannot be processed (e.g. PAN not verified)."""
+
+    status_code = 422

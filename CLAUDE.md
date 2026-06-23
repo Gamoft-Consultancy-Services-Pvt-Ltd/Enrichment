@@ -39,11 +39,16 @@ the registry.)
 structured JSON output via Groq function calling (`llama-3.3-70b-versatile`,
 temperature=0). Only file in the project that imports `groq`.
 
+**`clients/pan_client.py` (complete):** Thin async wrapper around Sandbox
+(Quicko) for PAN identity verification. Validates PAN format and checks name +
+DOB match against government records.
+
 **`modules/tenant_onboarding` (complete):** Fully automated three-agent pipeline
 triggered by `POST /onboarding`. No human review step.
 - `agents/persona.py` — website text → structured business profile
 - `agents/icp.py` — business profile → ideal customer profile
 - `agents/signals.py` — profile + ICP → signals, weights, thresholds
+- `kyb.py` — PAN identity verification via Sandbox/Quicko (name + DOB match gate)
 - `pipeline.py` — fetches website (httpx), runs agents in sequence, calls
   `create_active`, calls `activate_tenant`, updates `onboarding_status`.
   Sets `RUNNING` on start, `COMPLETE` on success, `FAILED` on any exception.
@@ -82,11 +87,15 @@ communicates across boundaries only via `shared/events` and public services.
 
 1. **Tenant onboarding** (`modules/tenant_onboarding`) — takes a new tenant from
    signup to `active` with no human input. Triggered by `POST /onboarding`
-   (tenant provides `website_url`). An ARQ background job fetches the website,
-   then runs three Groq agents in sequence (Persona → ICP → Signals) to build a
-   versioned `tenant_config` (business profile, ICP, signal definitions,
-   per-dimension weights, thresholds). Writes directly as `ACTIVE` — no
-   DRAFT/approval step. Re-runs produce a new version that supersedes the prior
+   (tenant provides `website_url`). Onboarding is gated on a synchronous, OTP-free
+   PAN identity check via Sandbox/Quicko (`modules/tenant_onboarding/kyb.py` →
+   `clients/pan_client.py`): the PAN must be valid and the applicant-supplied name
+   + DOB must match. The free-email-domain block and company-email login are
+   enforced in Auth0 (see `docs/ops/auth0-kyb-email-gate.md`). An ARQ background
+   job fetches the website, then runs three Groq agents in sequence (Persona → ICP
+   → Signals) to build a versioned `tenant_config` (business profile, ICP, signal
+   definitions, per-dimension weights, thresholds). Writes directly as `ACTIVE` —
+   no DRAFT/approval step. Re-runs produce a new version that supersedes the prior
    one without disrupting live scoring. The scoring prompt *template* lives in
    `modules/scoring` code.
 2. **Lead ingestion** (`modules/lead_ingestion`) — accepts leads from four
