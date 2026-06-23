@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from groq import AsyncGroq
+from langfuse.decorators import langfuse_context, observe
 
 from core.config import get_settings
 from core.exceptions import ExternalServiceError
@@ -15,6 +16,7 @@ from core.exceptions import ExternalServiceError
 _MODEL = "llama-3.3-70b-versatile"
 
 
+@observe(as_type="generation")
 async def call_with_tool(
     *,
     prompt: str,
@@ -56,4 +58,14 @@ async def call_with_tool(
         raise ExternalServiceError("Groq returned no tool_call in response")
 
     result: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    langfuse_context.update_current_observation(
+        name=tool_name,
+        model=model,
+        input=prompt,
+        output=result,
+        usage={
+            "input": response.usage.prompt_tokens,
+            "output": response.usage.completion_tokens,
+        },
+    )
     return result
