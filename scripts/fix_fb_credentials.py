@@ -2,15 +2,16 @@
 
 Run:  uv run python scripts/fix_fb_credentials.py
 """
+
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-CONNECTION_ID  = "da2e7fcd-0a2a-4809-bc70-7d3eeac6ca2c"
-PAGE_ID        = "1346146538572443"
-PAGE_NAME      = "Enrichment Testing"
-PAGE_TOKEN     = (
+CONNECTION_ID = "da2e7fcd-0a2a-4809-bc70-7d3eeac6ca2c"
+PAGE_ID = "1346146538572443"
+PAGE_NAME = "Enrichment Testing"
+PAGE_TOKEN = (
     "EAAVPUDwkbawBRz2bvjEgAqlZA8Y0D6433W7urZCe3y6vNg7ohmeXmpqwWpNzjbyOe"
     "XSDCutlv6aaHJKiKWxlVGtZCrbATrZARfj73XcrGsadDv6O7LWZCdjA0vCWfgxuzbP"
     "Y4auVPt5FM9ZA7jJ4z4EXuxqHTMUWJMgzxTHqyYlRo6bPMMBK4fUYsX9KnNrnVrMlJ"
@@ -37,16 +38,15 @@ if __name__ == "__main__":
 
     # Verify we can decrypt it back
     recovered_nonce = credentials_bytes[:12]
-    recovered_ct    = credentials_bytes[12:]
+    recovered_ct = credentials_bytes[12:]
     recovered = json.loads(aesgcm.decrypt(recovered_nonce, recovered_ct, associated_data=None))
     assert recovered["page_access_token"] == PAGE_TOKEN, "Decrypt verification failed!"
     print(f"Encryption round-trip verified. Credential length: {len(credentials_bytes)} bytes")
 
     # Update DB via psycopg2
     import psycopg2
-    conn = psycopg2.connect(
-        "postgresql://postgres:postgres@localhost:5432/leadengine"
-    )
+
+    conn = psycopg2.connect("postgresql://postgres:postgres@localhost:5432/leadengine")
     cur = conn.cursor()
     cur.execute(
         "UPDATE channel_connections SET credentials_encrypted = %s WHERE id = %s",

@@ -4,6 +4,7 @@ For each message, shows the RAW Groq response (before calibration) and
 the final FilterResult (after calibration).
 Run:  uv run python scripts/probe_calibration.py
 """
+
 import asyncio
 import os
 import sys
@@ -31,7 +32,7 @@ async def main() -> None:
         try:
             # Step 1: raw Groq response (no calibration yet)
             raw = await classify_message(msg)
-            raw_cls  = raw.get("classification", "?")
+            raw_cls = raw.get("classification", "?")
             raw_conf = raw.get("confidence")
             print(f"  RAW  -> cls={raw_cls!r}  conf={raw_conf}")
 

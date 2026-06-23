@@ -18,16 +18,31 @@ def _make_ctx() -> dict[str, object]:
 def _status_update_payload() -> dict[str, Any]:
     return {
         "object": "whatsapp_business_account",
-        "entry": [{"id": "123456789", "changes": [{"value": {
-            "messaging_product": "whatsapp",
-            "metadata": {"display_phone_number": "919876543210", "phone_number_id": "987654321"},
-            "statuses": [{
-                "id": "wamid.statusupdate001",
-                "status": "read",
-                "timestamp": "1700001500",
-                "recipient_id": "919876543210",
-            }],
-        }, "field": "messages"}]}],
+        "entry": [
+            {
+                "id": "123456789",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "919876543210",
+                                "phone_number_id": "987654321",
+                            },
+                            "statuses": [
+                                {
+                                    "id": "wamid.statusupdate001",
+                                    "status": "read",
+                                    "timestamp": "1700001500",
+                                    "recipient_id": "919876543210",
+                                }
+                            ],
+                        },
+                        "field": "messages",
+                    }
+                ],
+            }
+        ],
     }
 
 
@@ -54,16 +69,31 @@ async def test_run_lead_capture_skips_wa_delivery_receipt() -> None:
         "channel_connection_id": str(uuid4()),
         "raw_payload": {
             "object": "whatsapp_business_account",
-            "entry": [{"id": "123456789", "changes": [{"value": {
-                "messaging_product": "whatsapp",
-                "metadata": {"display_phone_number": "919876543210", "phone_number_id": "987654321"},
-                "statuses": [{
-                    "id": "wamid.deliveryreceipt001",
-                    "status": "delivered",
-                    "timestamp": "1700001600",
-                    "recipient_id": "919876543210",
-                }],
-            }, "field": "messages"}]}],
+            "entry": [
+                {
+                    "id": "123456789",
+                    "changes": [
+                        {
+                            "value": {
+                                "messaging_product": "whatsapp",
+                                "metadata": {
+                                    "display_phone_number": "919876543210",
+                                    "phone_number_id": "987654321",
+                                },
+                                "statuses": [
+                                    {
+                                        "id": "wamid.deliveryreceipt001",
+                                        "status": "delivered",
+                                        "timestamp": "1700001600",
+                                        "recipient_id": "919876543210",
+                                    }
+                                ],
+                            },
+                            "field": "messages",
+                        }
+                    ],
+                }
+            ],
         },
     }
 

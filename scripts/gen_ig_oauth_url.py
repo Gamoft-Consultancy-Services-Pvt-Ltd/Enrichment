@@ -9,6 +9,7 @@ Prerequisites:
     META_IG_APP_SECRET=<value from Meta → Enrichment-IG app → Settings → Basic>
     BASE_URL=https://lorna-nonutilized-macy.ngrok-free.dev
 """
+
 import os
 import sys
 import uuid

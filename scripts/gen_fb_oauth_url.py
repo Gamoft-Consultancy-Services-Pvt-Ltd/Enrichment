@@ -3,6 +3,7 @@
 Run:  uv run python scripts/gen_fb_oauth_url.py
 Outputs the URL to navigate to in Playwright for Phase 11 E2E test.
 """
+
 import os
 import sys
 import uuid

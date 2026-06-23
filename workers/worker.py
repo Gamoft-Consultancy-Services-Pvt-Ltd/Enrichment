@@ -34,6 +34,11 @@ class WorkerSettings:
     on_startup = _on_startup
     on_shutdown = _on_shutdown
     max_tries = 2  # 1 retry on failure; dead-letters after 2nd failure
-    functions = [run_onboarding_pipeline, run_lead_capture_batch, run_lead_capture, run_lead_ad_capture]
+    functions = [
+        run_onboarding_pipeline,
+        run_lead_capture_batch,
+        run_lead_capture,
+        run_lead_ad_capture,
+    ]
     cron_jobs = [cron(run_instagram_token_refresh, hour=2, minute=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)

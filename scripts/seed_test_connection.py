@@ -55,19 +55,27 @@ async def main() -> None:
         await config_service.create_active(
             session,
             tenant.id,
-            TenantConfigCreate.model_validate({
-                "business_profile": {"summary": "B2B SaaS testing"},
-                "icp": {"summary": "SMB decision-makers"},
-                "signals": [
-                    {"id": "fit_1", "dimension": "FIT", "question": "In target segment?"},
-                    {"id": "intent_1", "dimension": "INTENT", "question": "Active buyer?"},
-                    {"id": "eng_1", "dimension": "ENGAGEMENT", "question": "Engaged with ad?"},
-                    {"id": "beh_1", "dimension": "BEHAVIOUR", "question": "Site visit?"},
-                    {"id": "ctx_1", "dimension": "CONTEXT", "question": "Recent trigger?"},
-                ],
-                "weights": {"fit": 0.2, "intent": 0.2, "engagement": 0.2, "behaviour": 0.2, "context": 0.2},
-                "thresholds": {"hot": 80.0, "warm": 55.0},
-            }),
+            TenantConfigCreate.model_validate(
+                {
+                    "business_profile": {"summary": "B2B SaaS testing"},
+                    "icp": {"summary": "SMB decision-makers"},
+                    "signals": [
+                        {"id": "fit_1", "dimension": "FIT", "question": "In target segment?"},
+                        {"id": "intent_1", "dimension": "INTENT", "question": "Active buyer?"},
+                        {"id": "eng_1", "dimension": "ENGAGEMENT", "question": "Engaged with ad?"},
+                        {"id": "beh_1", "dimension": "BEHAVIOUR", "question": "Site visit?"},
+                        {"id": "ctx_1", "dimension": "CONTEXT", "question": "Recent trigger?"},
+                    ],
+                    "weights": {
+                        "fit": 0.2,
+                        "intent": 0.2,
+                        "engagement": 0.2,
+                        "behaviour": 0.2,
+                        "context": 0.2,
+                    },
+                    "thresholds": {"hot": 80.0, "warm": 55.0},
+                }
+            ),
         )
         print("Created tenant config")
 

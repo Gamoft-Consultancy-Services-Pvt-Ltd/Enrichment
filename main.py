@@ -42,5 +42,7 @@ async def health() -> dict[str, str]:
 @app.get("/dev-tools/whatsapp-test", response_class=HTMLResponse, include_in_schema=False)
 async def whatsapp_dev_test() -> HTMLResponse:
     """Serve the WhatsApp Embedded Signup dev test page (dev use only)."""
-    html = (pathlib.Path(__file__).resolve().parent / "dev_tools" / "embedded_signup_test.html").read_text(encoding="utf-8")
+    html = (
+        pathlib.Path(__file__).resolve().parent / "dev_tools" / "embedded_signup_test.html"
+    ).read_text(encoding="utf-8")
     return HTMLResponse(content=html)
