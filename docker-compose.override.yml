@@ -1,0 +1,27 @@
+# Development overrides — automatically merged by `docker compose up` locally.
+# Do NOT commit real secrets here.
+services:
+  app:
+    command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude .venv
+    volumes:
+      - .:/app
+      - venv:/app/.venv
+
+  worker:
+    command: uv run arq workers.worker.WorkerSettings
+    volumes:
+      - .:/app
+      - venv:/app/.venv
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@leadengine.local
+      PGADMIN_DEFAULT_PASSWORD: dev_only_change_me
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  venv:

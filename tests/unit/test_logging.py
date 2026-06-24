@@ -7,6 +7,16 @@ from _pytest.capture import CaptureFixture
 from core.logging import configure_logging, get_logger
 from tests.helpers import build_settings
 
+_PROD_SECRETS = {
+    "env": "production",
+    "groq_api_key": "gsk_test",
+    "channel_credentials_encryption_key": "key",
+    "meta_app_secret": "secret",
+    "auth0_domain": "acme.us.auth0.com",
+    "auth0_audience": "api://leadengine",
+    "meta_webhook_verify_token": "token",
+}
+
 
 def _last_line(text: str) -> str:
     """Return the last non-empty line of captured output."""
@@ -15,7 +25,7 @@ def _last_line(text: str) -> str:
 
 def test_production_logs_are_json(capsys: CaptureFixture[str]) -> None:
     """In production, each log line is a single JSON object with our fields."""
-    configure_logging(build_settings(env="production"))
+    configure_logging(build_settings(**_PROD_SECRETS))
 
     get_logger("test").info("lead_scored", score=82)
 
@@ -43,7 +53,7 @@ def test_development_logs_are_human_readable(capsys: CaptureFixture[str]) -> Non
 
 def test_bound_context_appears_in_logs(capsys: CaptureFixture[str]) -> None:
     """Context bound to a logger (e.g. tenant_id) rides along on every line."""
-    configure_logging(build_settings(env="production"))
+    configure_logging(build_settings(**_PROD_SECRETS))
 
     get_logger("test").bind(tenant_id="t-123").info("lead_scored")
 

@@ -76,3 +76,12 @@ class LeadScored(Event):
     lead_id: UUID
     score: float = Field(ge=0, le=100)
     bucket: LeadBucket
+
+
+class LeadErasureRequested(Event):
+    """COMP-303: a right-to-erasure request was fulfilled for one or more leads."""
+
+    event_type: Literal["LeadErasureRequested"] = "LeadErasureRequested"
+    erased_lead_ids: list[UUID]
+    identifier_type: str
+    identifier_hash: str

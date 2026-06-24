@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/lead-ingestion, "epic4/**"]
   pull_request:
-    branches: [main]
+    branches: [main, feature/lead-ingestion]
 
 jobs:
   lint-and-typecheck:
@@ -80,7 +80,7 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine_test
           REDIS_URL: redis://localhost:6379/0
-        run: uv run pytest tests/integration -v || echo "no integration tests yet"
+        run: uv run pytest tests/integration -v
 
   docker-build:
     runs-on: ubuntu-latest
