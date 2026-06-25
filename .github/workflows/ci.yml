@@ -80,8 +80,10 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine_test
           REDIS_URL: redis://localhost:6379/0
-          CHANNEL_CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.CHANNEL_CREDENTIALS_ENCRYPTION_KEY }}
-          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          # Test-only AES-256 key (32 zero bytes, base64url). Only protects fake CI data.
+          CHANNEL_CREDENTIALS_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          # Arbitrary 32-char value satisfies HMAC signing in webhook tests.
+          META_APP_SECRET: ci_test_meta_app_secret_00000000
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: uv run pytest tests/integration -v
 
