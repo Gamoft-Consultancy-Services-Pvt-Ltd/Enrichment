@@ -15,6 +15,7 @@ from modules.lead_ingestion.service import (
     check_pre_flight,
     decrypt_credentials,
     get_channel_connection,
+    log_failed_intake_event,
     normalise_facebook_dm,
     normalise_file_row,
     normalise_instagram_dm,
@@ -95,6 +96,18 @@ async def run_lead_ad_capture(ctx: dict[str, object], payload_dict: dict[str, An
         try:
             field_data = await fetch_lead_fields(leadgen_id, page_access_token, settings=settings)
         except ExternalServiceError:
+            log.warning(
+                "lead_ad_fetch_failed",
+                tenant_id=str(tenant_id),
+                leadgen_id=leadgen_id,
+            )
+            await log_failed_intake_event(
+                session,
+                f"leadgen-{leadgen_id}",
+                "FACEBOOK_LEAD_ADS",
+                raw_payload,
+                tenant_id=tenant_id,
+            )
             return
 
         event = normalise_lead_ad_form(

@@ -7,6 +7,7 @@ Never import internal files (pipeline, normaliser, db/, etc.) from outside this 
 from modules.lead_ingestion.crypto import decrypt_credentials
 from modules.lead_ingestion.db import repository
 from modules.lead_ingestion.db.models import Lead
+from modules.lead_ingestion.erasure import erase_lead_by_identity
 from modules.lead_ingestion.exceptions import (
     ChannelApiError,
     DuplicateEventError,
@@ -37,6 +38,7 @@ get_whatsapp_connection_by_phone_number_id = repository.get_whatsapp_connection_
 get_connection_by_page_or_ig_account_id = repository.get_connection_by_page_or_ig_account_id
 get_channel_connection = repository.get_channel_connection
 log_unroutable_event = repository.log_unroutable_event
+log_failed_intake_event = repository.log_failed_intake_event
 
 __all__ = [
     # Exceptions
@@ -68,6 +70,7 @@ __all__ = [
     "get_connection_by_page_or_ig_account_id",
     "get_channel_connection",
     "log_unroutable_event",
+    "log_failed_intake_event",
     # OAuth — Facebook
     "build_facebook_auth_url",
     "exchange_facebook_code",
@@ -76,4 +79,6 @@ __all__ = [
     "exchange_instagram_code",
     # OAuth — WhatsApp Embedded Signup
     "exchange_whatsapp_signup_code",
+    # GDPR erasure
+    "erase_lead_by_identity",
 ]

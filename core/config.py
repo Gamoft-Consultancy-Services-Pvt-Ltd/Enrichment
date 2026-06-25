@@ -7,7 +7,19 @@ their own settings here as the application grows.
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REQUIRED_IN_PRODUCTION = [
+    "groq_api_key",
+    "channel_credentials_encryption_key",
+    "meta_app_secret",
+    "auth0_domain",
+    "auth0_audience",
+    "meta_webhook_verify_token",
+    "auth0_mgmt_client_id",
+    "auth0_mgmt_client_secret",
+]
 
 
 class Settings(BaseSettings):
@@ -44,6 +56,23 @@ class Settings(BaseSettings):
     auth_claim_namespace: str = "https://leadengine/"
     # SPA Client ID used only so the /docs "Authorize" button can run the Auth0 login.
     auth0_spa_client_id: str = ""
+    # Management API credentials — used by onboarding to update user app_metadata after
+    # tenant creation, so the next JWT carries role=TENANT and the correct tenant_id.
+    auth0_mgmt_client_id: str = ""
+    auth0_mgmt_client_secret: str = ""
+
+    # Data lifecycle retention windows (COMP-302)
+    lead_data_retention_days: int = 730
+    intake_log_retention_days: int = 180
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> "Settings":
+        if self.env not in ("production", "staging"):
+            return self
+        missing = [f for f in _REQUIRED_IN_PRODUCTION if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Required secrets not set for env='{self.env}': {', '.join(missing)}")
+        return self
 
 
 @lru_cache

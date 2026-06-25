@@ -1,17 +1,25 @@
 """Application entry point. Builds the FastAPI app and exposes /health, /me, /onboarding."""
 
 import pathlib
+import time
+import uuid
+from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+import structlog
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy import text
 
 from api.lead_ingestion import router as lead_ingestion_router
 from api.me import router as me_router
 from api.middleware import app_error_handler
 from api.onboarding import router as onboarding_router
 from core.config import get_settings
+from core.db import async_session_factory
 from core.exceptions import AppError
 from core.lifespan import lifespan
+
+log = structlog.get_logger()
 
 _settings = get_settings()
 
@@ -33,10 +41,45 @@ app.include_router(onboarding_router)
 app.include_router(lead_ingestion_router, prefix="/channels")
 
 
+@app.middleware("http")
+async def request_logging_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
+    bound_log = log.bind(request_id=request_id, method=request.method, path=request.url.path)
+    try:
+        response = await call_next(request)
+    except Exception:
+        bound_log.exception("unhandled_error")
+        raise
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    bound_log.info("request", status=response.status_code, duration_ms=duration_ms)
+    response.headers["X-Request-Id"] = request_id
+    return response
+
+
 @app.get("/health")
-async def health() -> dict[str, str]:
-    """Health check endpoint used by Docker, CI, and load balancers."""
-    return {"status": "ok"}
+async def health(request: Request) -> Response:
+    """Deep health check: verifies DB and Redis connectivity before returning 200."""
+    errors: list[str] = []
+
+    try:
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        errors.append(f"db: {exc}")
+
+    try:
+        pool = request.app.state.arq_pool
+        await pool.ping()
+    except Exception as exc:
+        errors.append(f"redis: {exc}")
+
+    if errors:
+        return JSONResponse({"status": "degraded", "errors": errors}, status_code=503)
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/dev-tools/whatsapp-test", response_class=HTMLResponse, include_in_schema=False)

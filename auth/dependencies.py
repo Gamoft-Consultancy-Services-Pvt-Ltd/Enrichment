@@ -8,13 +8,13 @@ the login directly. It reads the same `Authorization: Bearer <token>` header.
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import token as token_module
 from auth.models import User
-from auth.schemas import Principal
+from auth.schemas import Principal, Role
 from auth.service import get_or_create_user
 from core.config import get_settings
 from core.db import get_session
@@ -38,3 +38,21 @@ async def get_current_user(
     claims = token_module.verify_token(token)
     principal = Principal.from_claims(claims, get_settings().auth_claim_namespace)
     return await get_or_create_user(session, principal)
+
+
+async def require_tenant_user(
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Require TENANT role and a linked tenant_id; raise 403 for platform_admins."""
+    if user.role != Role.TENANT or user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="tenant_role_required")
+    return user
+
+
+async def require_platform_admin(
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Require PLATFORM_ADMIN role; raise 403 for tenant users."""
+    if user.role != Role.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="platform_admin_role_required")
+    return user

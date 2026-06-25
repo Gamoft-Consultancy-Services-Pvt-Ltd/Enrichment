@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/lead-ingestion, "epic4/**"]
   pull_request:
-    branches: [main]
+    branches: [main, feature/lead-ingestion]
 
 jobs:
   lint-and-typecheck:
@@ -80,7 +80,12 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/leadengine_test
           REDIS_URL: redis://localhost:6379/0
-        run: uv run pytest tests/integration -v || echo "no integration tests yet"
+          # Test-only AES-256 key (32 zero bytes, base64url). Only protects fake CI data.
+          CHANNEL_CREDENTIALS_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          # Arbitrary 32-char value satisfies HMAC signing in webhook tests.
+          META_APP_SECRET: ci_test_meta_app_secret_00000000
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: uv run pytest tests/integration -v
 
   docker-build:
     runs-on: ubuntu-latest

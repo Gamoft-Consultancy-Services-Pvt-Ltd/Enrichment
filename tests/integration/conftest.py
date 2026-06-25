@@ -1,7 +1,19 @@
 """Fixtures for integration tests: a migrated Postgres and a clean session per test."""
 
+import os
 import subprocess
 from collections.abc import AsyncGenerator
+
+# Provide deterministic test-only values for secrets that the app validates at
+# settings-load time. These protect nothing real — all integration test data is fake.
+# Real values come from the environment (CI workflow env / local .env); setdefault
+# only fires when the variable is absent, so it never overrides a real key.
+os.environ.setdefault(
+    "CHANNEL_CREDENTIALS_ENCRYPTION_KEY",
+    # base64url(b"\x00" * 32) — 32 zero bytes, valid AES-256 key
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+)
+os.environ.setdefault("META_APP_SECRET", "ci_test_meta_app_secret_00000000")
 
 import pytest
 from sqlalchemy import text

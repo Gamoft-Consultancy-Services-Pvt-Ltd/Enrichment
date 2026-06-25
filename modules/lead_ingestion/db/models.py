@@ -13,7 +13,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, Uuid, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +34,27 @@ class Lead(Base):
     """A de-duplicated contact record created when an inbound event passes pre-flight."""
 
     __tablename__ = "leads"
+
+    # Partial unique indexes on nullable identity columns — NULLs excluded so leads
+    # without phone/email don't conflict. Guards against the read-then-write dedup
+    # race: two concurrent webhooks for the same new contact can both pass
+    # find_duplicate() before either commits; the DB constraint catches the second.
+    __table_args__ = (
+        Index(
+            "uq_lead_tenant_phone",
+            "tenant_id",
+            "phone",
+            unique=True,
+            postgresql_where=text("phone IS NOT NULL"),
+        ),
+        Index(
+            "uq_lead_tenant_email",
+            "tenant_id",
+            "email",
+            unique=True,
+            postgresql_where=text("email IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -126,3 +157,40 @@ class LeadTouchpoint(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class RetentionEventLog(Base):
+    """Audit log written once per anonymised lead (COMP-302 ST7)."""
+
+    __tablename__ = "retention_event_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("leads.id"), nullable=True, index=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    retention_days_applied: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class ErasureEventLog(Base):
+    """Audit log written once per right-to-erasure request (COMP-303)."""
+
+    __tablename__ = "erasure_event_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    erased_lead_ids: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    identifier_type: Mapped[str] = mapped_column(String, nullable=False)
+    identifier_hash: Mapped[str] = mapped_column(String, nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    requested_by: Mapped[str] = mapped_column(String, nullable=False)

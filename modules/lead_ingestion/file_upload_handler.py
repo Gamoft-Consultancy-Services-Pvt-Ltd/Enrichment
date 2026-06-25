@@ -13,16 +13,20 @@ from typing import Any
 from uuid import UUID
 
 import openpyxl
+import structlog
 from arq.connections import ArqRedis
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.lead_ingestion.data_policy import strip_sensitive_fields
 from modules.lead_ingestion.db.models import Lead
 from modules.lead_ingestion.exceptions import PreFlightHaltError
 from modules.lead_ingestion.normaliser import normalise_file_row
 from modules.lead_ingestion.pipeline import run_capture
 from modules.lead_ingestion.pre_flight import check_pre_flight
 from shared.events.schemas import LeadSource
+
+log = structlog.get_logger(__name__)
 
 _MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 _MAX_ROWS = 5_000
@@ -121,6 +125,15 @@ async def handle_file_upload(
     lead_ids: list[str] = []
     for i, row in enumerate(str_rows):
         event = normalise_file_row(row, tenant_id=tenant_id, row_index=i)
+        if event.extra_fields:
+            clean_extra, stripped = strip_sensitive_fields(event.extra_fields)
+            if stripped:
+                log.info(
+                    "sensitive_fields_stripped",
+                    tenant_id=str(tenant_id),
+                    stripped_keys=sorted(stripped.keys()),
+                )
+                event = event.model_copy(update={"extra_fields": clean_extra})
         if not event.phone and not event.email and not event.full_name:
             blocked = await _write_blocked_lead(
                 session, tenant_id, row, event.extra_fields, "insufficient_identity_fields"

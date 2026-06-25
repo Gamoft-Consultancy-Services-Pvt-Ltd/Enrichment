@@ -19,13 +19,41 @@ def test_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_settings_read_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Environment variables override the defaults."""
-    monkeypatch.setenv("ENV", "production")
+    monkeypatch.setenv("ENV", "development")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
 
     settings = build_settings()
 
-    assert settings.env == "production"
+    assert settings.env == "development"
     assert settings.log_level == "DEBUG"
+
+
+def test_production_settings_require_secrets() -> None:
+    """Settings with env=production raises ValueError when required secrets are absent."""
+    with pytest.raises(ValueError, match="Required secrets not set"):
+        build_settings(env="production")
+
+
+def test_production_settings_boot_with_all_secrets() -> None:
+    """Settings with env=production succeeds when all required secrets are provided."""
+    settings = build_settings(
+        env="production",
+        groq_api_key="gsk_test",
+        channel_credentials_encryption_key="key",
+        meta_app_secret="secret",
+        auth0_domain="acme.us.auth0.com",
+        auth0_audience="api://leadengine",
+        meta_webhook_verify_token="token",
+        auth0_mgmt_client_id="mgmt_client_id",
+        auth0_mgmt_client_secret="mgmt_client_secret",
+    )
+    assert settings.env == "production"
+
+
+def test_staging_settings_require_secrets() -> None:
+    """env=staging is treated the same as production for secret validation."""
+    with pytest.raises(ValueError, match="Required secrets not set"):
+        build_settings(env="staging")
 
 
 def test_settings_database_url_default(monkeypatch: pytest.MonkeyPatch) -> None:

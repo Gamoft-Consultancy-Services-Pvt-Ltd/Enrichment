@@ -2,8 +2,10 @@
 
 import uuid
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.lead_ingestion.db.models import IntakeEventLog, Lead
@@ -89,16 +91,54 @@ async def log_unroutable_event(
     source_channel: str,
     raw_event_json: dict[str, Any],
 ) -> None:
-    """Write an IntakeEventLog row for a webhook that could not be routed to any tenant."""
-    log = IntakeEventLog(
-        tenant_id=None,
-        lead_id=None,
-        platform_event_id=platform_event_id,
-        source_channel=source_channel,
-        status="unroutable",
-        raw_event_json=raw_event_json,
+    """Write an IntakeEventLog row for a webhook that could not be routed to any tenant.
+
+    Uses ON CONFLICT DO NOTHING so that Meta webhook redeliveries of an already-logged
+    unroutable event are silently ignored rather than raising IntegrityError → 500.
+    """
+    stmt = (
+        pg_insert(IntakeEventLog)
+        .values(
+            id=uuid4(),
+            tenant_id=None,
+            lead_id=None,
+            platform_event_id=platform_event_id,
+            source_channel=source_channel,
+            status="unroutable",
+            raw_event_json=raw_event_json,
+        )
+        .on_conflict_do_nothing(index_elements=["platform_event_id"])
     )
-    session.add(log)
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def log_failed_intake_event(
+    session: AsyncSession,
+    platform_event_id: str,
+    source_channel: str,
+    raw_event_json: dict[str, Any],
+    tenant_id: uuid.UUID | None = None,
+) -> None:
+    """Write an IntakeEventLog row with status='failed' for events that could not be processed.
+
+    Used when a downstream API call (e.g. Meta Graph) fails during job processing.
+    ON CONFLICT DO NOTHING makes retried jobs idempotent on the audit log.
+    """
+    stmt = (
+        pg_insert(IntakeEventLog)
+        .values(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            lead_id=None,
+            platform_event_id=platform_event_id,
+            source_channel=source_channel,
+            status="failed",
+            raw_event_json=raw_event_json,
+        )
+        .on_conflict_do_nothing(index_elements=["platform_event_id"])
+    )
+    await session.execute(stmt)
     await session.commit()
 
 
