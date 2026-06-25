@@ -60,6 +60,7 @@ def _make_client(
                 claims[f"{_NS}tenant_id"] = str(tenant_id)
             return claims
         from core.exceptions import AuthenticationError
+
         raise AuthenticationError("bad token")
 
     monkeypatch.setattr(token_module, "verify_token", fake_verify)
@@ -88,9 +89,12 @@ async def tenant_client(
     await session.commit()
 
     ac = _make_client(
-        monkeypatch, session,
-        role=Role.TENANT, tenant_id=tenant_id,
-        user_sub="auth0|rbac-tenant", user_email="tenant@rbac.com",
+        monkeypatch,
+        session,
+        role=Role.TENANT,
+        tenant_id=tenant_id,
+        user_sub="auth0|rbac-tenant",
+        user_email="tenant@rbac.com",
     )
     async with ac as client:
         yield client, tenant_id
@@ -112,9 +116,12 @@ async def admin_client(
     await session.commit()
 
     ac = _make_client(
-        monkeypatch, session,
-        role=Role.PLATFORM_ADMIN, tenant_id=None,
-        user_sub="auth0|rbac-admin", user_email="admin@platform.com",
+        monkeypatch,
+        session,
+        role=Role.PLATFORM_ADMIN,
+        tenant_id=None,
+        user_sub="auth0|rbac-admin",
+        user_email="admin@platform.com",
     )
     async with ac as client:
         yield client
@@ -125,6 +132,7 @@ async def admin_client(
 # ---------------------------------------------------------------------------
 # File upload — tenant-only endpoint
 # ---------------------------------------------------------------------------
+
 
 async def test_file_upload_platform_admin_gets_403(admin_client: AsyncClient) -> None:
     csv_bytes = b"name,phone\nTest User,+919876543210"
@@ -156,6 +164,7 @@ async def test_file_upload_tenant_user_is_allowed(
 # Erasure request — tenant-only endpoint
 # ---------------------------------------------------------------------------
 
+
 async def test_erasure_platform_admin_gets_403(admin_client: AsyncClient) -> None:
     resp = await admin_client.post(
         "/channels/erasure-request",
@@ -182,6 +191,7 @@ async def test_erasure_tenant_user_is_allowed(
 # ---------------------------------------------------------------------------
 # OAuth initiation — tenant-only endpoints
 # ---------------------------------------------------------------------------
+
 
 async def test_facebook_oauth_initiation_platform_admin_gets_403(
     admin_client: AsyncClient,

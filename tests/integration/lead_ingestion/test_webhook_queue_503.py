@@ -88,18 +88,14 @@ async def failing_arq_client(session: AsyncSession) -> AsyncIterator[AsyncClient
     app.dependency_overrides[get_arq_pool] = lambda: mock_pool
     app.dependency_overrides[get_session] = _use_test_session
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             yield ac
     finally:
         app.dependency_overrides.pop(get_arq_pool, None)
         app.dependency_overrides.pop(get_session, None)
 
 
-def _post_webhook(
-    payload: Any, *, secret: str
-) -> tuple[bytes, dict[str, str]]:
+def _post_webhook(payload: Any, *, secret: str) -> tuple[bytes, dict[str, str]]:
     body = json.dumps(payload).encode()
     return body, {
         "Content-Type": "application/json",
@@ -116,11 +112,25 @@ async def test_whatsapp_webhook_returns_503_on_queue_failure(
 
     payload = {
         "object": "whatsapp_business_account",
-        "entry": [{"changes": [{"value": {
-            "metadata": {"phone_number_id": phone_number_id},
-            "messages": [{"id": f"wamid.{uuid.uuid4().hex}", "type": "text",
-                          "text": {"body": "Hello"}, "from": "919876543210"}],
-        }}]}],
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "metadata": {"phone_number_id": phone_number_id},
+                            "messages": [
+                                {
+                                    "id": f"wamid.{uuid.uuid4().hex}",
+                                    "type": "text",
+                                    "text": {"body": "Hello"},
+                                    "from": "919876543210",
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        ],
     }
     secret = get_settings().meta_app_secret
     body, headers = _post_webhook(payload, secret=secret)
@@ -159,8 +169,9 @@ async def test_lead_ad_webhook_returns_503_on_queue_failure(
     leadgen_id = uuid.uuid4().hex
     payload = {
         "object": "page",
-        "entry": [{"id": page_id, "changes": [{"field": "leadgen",
-                                                "value": {"leadgen_id": leadgen_id}}]}],
+        "entry": [
+            {"id": page_id, "changes": [{"field": "leadgen", "value": {"leadgen_id": leadgen_id}}]}
+        ],
     }
     secret = get_settings().meta_app_secret
     body, headers = _post_webhook(payload, secret=secret)
