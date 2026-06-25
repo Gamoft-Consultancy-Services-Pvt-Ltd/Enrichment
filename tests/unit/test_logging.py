@@ -15,6 +15,8 @@ _PROD_SECRETS = {
     "auth0_domain": "acme.us.auth0.com",
     "auth0_audience": "api://leadengine",
     "meta_webhook_verify_token": "token",
+    "auth0_mgmt_client_id": "mgmt_client_id",
+    "auth0_mgmt_client_secret": "mgmt_client_secret",
 }
 
 

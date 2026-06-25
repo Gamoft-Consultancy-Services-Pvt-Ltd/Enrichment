@@ -17,6 +17,8 @@ _REQUIRED_IN_PRODUCTION = [
     "auth0_domain",
     "auth0_audience",
     "meta_webhook_verify_token",
+    "auth0_mgmt_client_id",
+    "auth0_mgmt_client_secret",
 ]
 
 
@@ -54,6 +56,10 @@ class Settings(BaseSettings):
     auth_claim_namespace: str = "https://leadengine/"
     # SPA Client ID used only so the /docs "Authorize" button can run the Auth0 login.
     auth0_spa_client_id: str = ""
+    # Management API credentials — used by onboarding to update user app_metadata after
+    # tenant creation, so the next JWT carries role=TENANT and the correct tenant_id.
+    auth0_mgmt_client_id: str = ""
+    auth0_mgmt_client_secret: str = ""
 
     # Data lifecycle retention windows (COMP-302)
     lead_data_retention_days: int = 730

@@ -20,8 +20,6 @@ from shared.channels.models import ChannelConnection
 from shared.tenant import service as tenant_service
 from shared.tenant.schemas import BusinessType, TenantCreate
 
-_SECRET = "8a7ad9d320e984b58ecd57000a7eb799"
-
 
 async def _make_tenant(session: AsyncSession) -> uuid.UUID:
     tenant = await tenant_service.create_tenant(
@@ -38,7 +36,10 @@ async def _make_tenant(session: AsyncSession) -> uuid.UUID:
 
 
 def _make_state(tenant_id: uuid.UUID) -> str:
-    return sign_state({"tenant_id": str(tenant_id), "channel": "facebook"}, secret=_SECRET)
+    return sign_state(
+        {"tenant_id": str(tenant_id), "channel": "facebook"},
+        secret=get_settings().meta_app_secret,
+    )
 
 
 def _fake_accounts() -> list[dict[str, Any]]:

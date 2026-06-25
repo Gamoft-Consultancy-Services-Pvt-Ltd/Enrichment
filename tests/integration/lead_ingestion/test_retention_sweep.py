@@ -20,14 +20,15 @@ def _past(days: int) -> datetime:
 async def _seed_lead(
     session: AsyncSession, *, tenant_id: uuid.UUID, days_old: int, pipeline_stage: str = "captured"
 ) -> Lead:
+    uniq = uuid.uuid4().hex[:8]
     lead = Lead(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
         pipeline_stage=pipeline_stage,
         source_channel="file_upload",
         full_name="Test User",
-        phone="+919876543210",
-        email="test@example.com",
+        phone=f"+9198765{uniq[:5]}",
+        email=f"test_{uniq}@example.com",
         location="Mumbai",
         raw_event_json={"original": "event"},
         extra_fields={"budget": "50000"},

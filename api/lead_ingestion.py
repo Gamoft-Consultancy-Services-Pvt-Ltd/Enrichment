@@ -9,13 +9,14 @@ import json
 from typing import Annotated, Any
 from uuid import UUID
 
+import structlog
 from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_user, require_tenant_user
 from auth.models import User
 from core.config import get_settings
 from core.db import get_session
@@ -25,6 +26,7 @@ from modules.lead_ingestion.service import (
     OAuthStateError,
     build_facebook_auth_url,
     build_instagram_auth_url,
+    erase_lead_by_identity,
     exchange_facebook_code,
     exchange_instagram_code,
     exchange_whatsapp_signup_code,
@@ -36,6 +38,7 @@ from modules.lead_ingestion.service import (
     validate_signature,
 )
 
+log = structlog.get_logger(__name__)
 router = APIRouter()
 
 
@@ -126,14 +129,18 @@ async def _route_whatsapp(
             pass
         return {"status": "unknown_connection"}
 
-    await arq_pool.enqueue_job(
-        "run_lead_capture",
-        {
-            "tenant_id": str(connection.tenant_id),
-            "channel_connection_id": str(connection.id),
-            "raw_payload": payload,
-        },
-    )
+    try:
+        await arq_pool.enqueue_job(
+            "run_lead_capture",
+            {
+                "tenant_id": str(connection.tenant_id),
+                "channel_connection_id": str(connection.id),
+                "raw_payload": payload,
+            },
+        )
+    except Exception as exc:
+        log.error("arq_enqueue_failed", job="run_lead_capture", error=str(exc))
+        raise HTTPException(status_code=503, detail="queue_unavailable") from exc
     return {"status": "received"}
 
 
@@ -171,14 +178,18 @@ async def _route_facebook_instagram(
             pass
         return {"status": "unknown_connection"}
 
-    await arq_pool.enqueue_job(
-        "run_lead_capture",
-        {
-            "tenant_id": str(connection.tenant_id),
-            "channel_connection_id": str(connection.id),
-            "raw_payload": payload,
-        },
-    )
+    try:
+        await arq_pool.enqueue_job(
+            "run_lead_capture",
+            {
+                "tenant_id": str(connection.tenant_id),
+                "channel_connection_id": str(connection.id),
+                "raw_payload": payload,
+            },
+        )
+    except Exception as exc:
+        log.error("arq_enqueue_failed", job="run_lead_capture", error=str(exc))
+        raise HTTPException(status_code=503, detail="queue_unavailable") from exc
     return {"status": "received"}
 
 
@@ -199,15 +210,19 @@ async def _route_lead_ad(
         await log_unroutable_event(session, f"leadgen-{leadgen_id}", "FACEBOOK_LEAD_ADS", payload)
         return {"status": "unknown_connection"}
 
-    await arq_pool.enqueue_job(
-        "run_lead_ad_capture",
-        {
-            "tenant_id": str(connection.tenant_id),
-            "channel_connection_id": str(connection.id),
-            "leadgen_id": leadgen_id,
-            "raw_payload": payload,
-        },
-    )
+    try:
+        await arq_pool.enqueue_job(
+            "run_lead_ad_capture",
+            {
+                "tenant_id": str(connection.tenant_id),
+                "channel_connection_id": str(connection.id),
+                "leadgen_id": leadgen_id,
+                "raw_payload": payload,
+            },
+        )
+    except Exception as exc:
+        log.error("arq_enqueue_failed", job="run_lead_ad_capture", error=str(exc))
+        raise HTTPException(status_code=503, detail="queue_unavailable") from exc
     return {"status": "received"}
 
 
@@ -219,14 +234,12 @@ async def _route_lead_ad(
 @router.post("/inbound/file-upload")
 async def upload_leads(
     file: UploadFile,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(require_tenant_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
     arq_pool: Annotated[ArqRedis, Depends(get_arq_pool)],
 ) -> dict[str, Any]:
     """Accept a CSV or XLSX file and ingest its rows as leads for the current tenant."""
-    if user.tenant_id is None:
-        raise HTTPException(status_code=400, detail="User has no associated tenant")
-
+    assert user.tenant_id is not None  # guaranteed by require_tenant_user
     file_bytes = await file.read()
     return await handle_file_upload(
         file_bytes=file_bytes,
@@ -271,11 +284,10 @@ async def get_connection_status(
 
 @router.get("/oauth/facebook")
 async def initiate_facebook_oauth(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(require_tenant_user)],
 ) -> RedirectResponse:
     """Redirect the authenticated tenant user to Facebook's OAuth consent screen."""
-    if user.tenant_id is None:
-        raise HTTPException(status_code=400, detail="User has no associated tenant")
+    assert user.tenant_id is not None  # guaranteed by require_tenant_user
     settings = get_settings()
     url = build_facebook_auth_url(user.tenant_id, settings=settings)
     return RedirectResponse(url=url)
@@ -316,11 +328,10 @@ async def facebook_oauth_callback(
 
 @router.get("/oauth/instagram")
 async def initiate_instagram_oauth(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(require_tenant_user)],
 ) -> RedirectResponse:
     """Redirect the authenticated tenant user to Instagram's OAuth consent screen."""
-    if user.tenant_id is None:
-        raise HTTPException(status_code=400, detail="User has no associated tenant")
+    assert user.tenant_id is not None  # guaranteed by require_tenant_user
     settings = get_settings()
     url = build_instagram_auth_url(user.tenant_id, settings=settings)
     return RedirectResponse(url=url)
@@ -355,6 +366,40 @@ async def instagram_oauth_callback(
 # ---------------------------------------------------------------------------
 
 
+class ErasureRequest(BaseModel):
+    identifier_type: str
+    identifier: str
+
+
+@router.post("/erasure-request")
+async def request_erasure(
+    body: ErasureRequest,
+    user: Annotated[User, Depends(require_tenant_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict[str, Any]:
+    """COMP-303: Right-to-erasure. Immediately null all PII for matching leads."""
+    if body.identifier_type not in ("phone", "email"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"identifier_type must be 'phone' or 'email', got '{body.identifier_type}'",
+        )
+    phone = body.identifier if body.identifier_type == "phone" else None
+    email = body.identifier if body.identifier_type == "email" else None
+    assert user.tenant_id is not None  # guaranteed by require_tenant_user
+    erased_ids, event = await erase_lead_by_identity(
+        session,
+        user.tenant_id,
+        phone=phone,
+        email=email,
+        requested_by=user.email,
+    )
+    return {
+        "erased_lead_count": len(erased_ids),
+        "erased_lead_ids": [str(lid) for lid in erased_ids],
+        "event": event.model_dump(mode="json") if event else None,
+    }
+
+
 class EmbeddedSignupRequest(BaseModel):
     code: str
 
@@ -362,12 +407,11 @@ class EmbeddedSignupRequest(BaseModel):
 @router.post("/embedded-signup/callback")
 async def whatsapp_embedded_signup_callback(
     body: EmbeddedSignupRequest,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(require_tenant_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, Any]:
     """Receive the Embedded Signup code from the frontend and provision WhatsApp connections."""
-    if user.tenant_id is None:
-        raise HTTPException(status_code=400, detail="User has no associated tenant")
+    assert user.tenant_id is not None  # guaranteed by require_tenant_user
     settings = get_settings()
     try:
         connections = await exchange_whatsapp_signup_code(
