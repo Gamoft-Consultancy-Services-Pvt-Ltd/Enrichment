@@ -22,6 +22,7 @@ dependencies = [
     "authlib>=1.3",
     "anthropic>=0.40",
     "structlog>=24.4",
+    "itsdangerous>=2.2.0",
 ]
 
 [dependency-groups]
@@ -55,3 +56,4 @@ exclude = ["migrations/versions/"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+pythonpath = [".", "modules/scoring"]
