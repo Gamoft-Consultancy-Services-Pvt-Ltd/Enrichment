@@ -1138,7 +1138,9 @@ class ShopifyOrderHistoryTool:
     name: str = "shopify_order_history"
     description: str = (
         "Look up a customer's past Shopify orders by email (primary) or phone "
-        "(fallback). Returns raw recent orders with line items, amounts, and dates."
+        "(fallback). Returns recent orders with line items, amounts, and dates. "
+        "The result contains order facts only — never customer email, phone, "
+        "name, or address."
     )
     parameters: dict[str, Any] = {
         "type": "object",
@@ -1163,7 +1165,10 @@ class ShopifyOrderHistoryTool:
                 }
             )
         # Deferred: call the Shopify Admin API via clients/shopify_client, look up
-        # the customer by email/phone, and return up to self._max_orders raw orders.
+        # the customer by email/phone, and return up to self._max_orders orders.
+        # The mapping MUST include only order facts (id, timestamps, amounts,
+        # currency, line-item title/qty/price) and MUST strip customer PII
+        # (email, phone, name, address) before returning.
         raise NotImplementedError("Shopify Admin API integration is not yet implemented")
 ```
 

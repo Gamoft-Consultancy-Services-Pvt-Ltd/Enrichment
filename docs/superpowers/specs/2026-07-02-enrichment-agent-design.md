@@ -114,7 +114,13 @@ Interface built now; real integration deferred.
     ]
   }
   ```
-- Lookup key: `email` primary, `phone` fallback.
+- Lookup key: `email` primary, `phone` fallback (input only — used to find the
+  customer, never echoed back).
+- **Output excludes customer PII by design:** the returned orders carry only
+  order facts (id, timestamps, amounts, currency, line-item titles/qty/price) —
+  no email, phone, name, or address. This keeps PII out of the LLM context, the
+  `EnrichmentResult`, and Langfuse traces. When the real integration lands, the
+  Shopify→tool mapping must strip any customer PII the Admin API returns.
 - Body is a stub until `clients/shopify_client` exists: returns
   `customer_found=False` / raises a clear "Shopify integration not configured".
   The interface is frozen so the agent and its tests are complete now.
