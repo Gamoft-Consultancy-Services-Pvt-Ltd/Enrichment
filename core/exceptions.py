@@ -31,6 +31,12 @@ class ConflictError(AppError):
     status_code = 409
 
 
+class AuthenticationError(AppError):
+    """Authentication failed (missing/invalid token or claims)."""
+
+    status_code = 401
+
+
 class ExternalServiceError(AppError):
     """An upstream external service (a clients/ wrapper) failed."""
 

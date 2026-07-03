@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, EmailStr
 
 
 class BusinessType(StrEnum):
@@ -27,6 +27,19 @@ class TenantStatus(StrEnum):
     CHURNED = "CHURNED"
 
 
+class OnboardingStatus(StrEnum):
+    """Tracks where the tenant is in the automated onboarding pipeline.
+
+    Lives here (not in modules/) because TenantRead imports it and shared/
+    cannot import from modules/.
+    """
+
+    PENDING = "PENDING"  # job queued, not yet picked up
+    RUNNING = "RUNNING"  # pipeline executing
+    COMPLETE = "COMPLETE"  # tenant_config ACTIVE, tenant ACTIVE
+    FAILED = "FAILED"  # pipeline crashed; tenant can retry
+
+
 class TenantCreate(BaseModel):
     """Fields a caller provides to create a tenant. The system assigns the rest."""
 
@@ -34,6 +47,7 @@ class TenantCreate(BaseModel):
     primary_contact_name: str
     primary_contact_email: EmailStr
     business_type: BusinessType
+    website_url: AnyHttpUrl
     timezone: str = "UTC"
     language_preference: str = "en"
 
@@ -48,6 +62,8 @@ class TenantRead(BaseModel):
     primary_contact_name: str
     primary_contact_email: EmailStr
     business_type: BusinessType
+    website_url: str
+    onboarding_status: OnboardingStatus
     status: TenantStatus
     timezone: str
     language_preference: str

@@ -1,12 +1,31 @@
 """Fixtures for integration tests: a migrated Postgres and a clean session per test."""
 
+import os
 import subprocess
 from collections.abc import AsyncGenerator
+
+# Provide deterministic test-only values for secrets that the app validates at
+# settings-load time. These protect nothing real — all integration test data is fake.
+# Real values come from the environment (CI workflow env / local .env); setdefault
+# only fires when the variable is absent, so it never overrides a real key.
+os.environ.setdefault(
+    "CHANNEL_CREDENTIALS_ENCRYPTION_KEY",
+    # base64url(b"\x00" * 32) — 32 zero bytes, valid AES-256 key
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+)
+os.environ.setdefault("META_APP_SECRET", "ci_test_meta_app_secret_00000000")
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# Import every model module so Base.metadata is complete: the truncation below
+# walks Base.metadata.sorted_tables, which resolves cross-table foreign keys.
+import auth.models  # noqa: E402, F401
+import modules.lead_ingestion.db.models  # noqa: E402, F401
+import shared.channels.models  # noqa: E402, F401
+import shared.tenant.models  # noqa: E402, F401
+import shared.tenant_config.models  # noqa: E402, F401
 from core.config import get_settings
 from core.db import Base
 

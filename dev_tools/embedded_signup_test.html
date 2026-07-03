@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WhatsApp Embedded Signup — Dev Test</title>
+  <style>
+    body { font-family: monospace; max-width: 700px; margin: 60px auto; padding: 0 20px; background: #f5f5f5; }
+    h2 { color: #c00; }
+    .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; margin-bottom: 24px; border-radius: 4px; }
+    button { background: #1877f2; color: white; border: none; padding: 12px 24px; font-size: 16px; cursor: pointer; border-radius: 4px; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    #result { display: none; margin-top: 32px; background: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 4px; }
+    #result h3 { margin-top: 0; color: #155724; }
+    pre { background: #eee; padding: 12px; overflow-x: auto; word-break: break-all; white-space: pre-wrap; }
+    #status { margin-top: 16px; font-weight: bold; }
+    .ok { color: green; }
+    .err { color: red; }
+  </style>
+</head>
+<body>
+
+  <h2>⚠ DEV TEST PAGE — delete after testing</h2>
+  <div class="warning">
+    Meta App ID: <strong>1494580908551596</strong><br>
+    Config ID: <strong>1311452217634130</strong><br>
+    Backend: <strong>https://lorna-nonutilized-macy.ngrok-free.dev</strong>
+  </div>
+
+  <label for="jwt">Paste your Bearer JWT (from Swagger /docs → Authorize):</label><br><br>
+  <textarea id="jwt" rows="4" style="width:100%;font-size:12px;"></textarea><br><br>
+
+  <button id="btn" onclick="launchSignup()">Connect WhatsApp Business Account</button>
+
+  <div id="result">
+    <h3>✅ Code received from Meta</h3>
+    <pre id="code-display"></pre>
+    <div id="status">Posting to backend...</div>
+  </div>
+
+  <script>
+    window.fbAsyncInit = function () {
+      FB.init({
+        appId: '1494580908551596',
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v21.0'
+      });
+    };
+
+    function launchSignup() {
+      const jwt = document.getElementById('jwt').value.trim();
+      if (!jwt) {
+        alert('Paste your JWT token first.');
+        return;
+      }
+      document.getElementById('btn').disabled = true;
+
+      FB.login(function (response) {
+        document.getElementById('btn').disabled = false;
+        if (response.authResponse && response.authResponse.code) {
+          const code = response.authResponse.code;
+          document.getElementById('code-display').textContent = code;
+          document.getElementById('result').style.display = 'block';
+          postToBackend(code, jwt);
+        } else {
+          alert('No code received. Response: ' + JSON.stringify(response));
+        }
+      }, {
+        config_id: '1311452217634130',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: '',
+          sessionInfoVersion: '3'
+        }
+      });
+    }
+
+    async function postToBackend(code, jwt) {
+      const statusEl = document.getElementById('status');
+      try {
+        const res = await fetch('https://lorna-nonutilized-macy.ngrok-free.dev/channels/embedded-signup/callback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + jwt
+          },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusEl.className = 'ok';
+          statusEl.textContent = '✅ Backend response: ' + JSON.stringify(data);
+        } else {
+          statusEl.className = 'err';
+          statusEl.textContent = '❌ Backend error ' + res.status + ': ' + JSON.stringify(data);
+        }
+      } catch (e) {
+        statusEl.className = 'err';
+        statusEl.textContent = '❌ Fetch error: ' + e.message;
+      }
+    }
+  </script>
+
+  <script async defer crossorigin="anonymous"
+    src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+</body>
+</html>

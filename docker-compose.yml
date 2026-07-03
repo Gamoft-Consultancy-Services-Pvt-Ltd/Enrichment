@@ -1,12 +1,13 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: leadengine
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,8 +18,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -29,7 +31,11 @@ services:
 
   app:
     build: .
+    restart: unless-stopped
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/leadengine
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
@@ -37,21 +43,25 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
-    command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    mem_limit: 512m
+    cpus: "1.0"
 
   worker:
     build: .
+    restart: unless-stopped
     env_file: .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/leadengine
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
-    command: uv run python workers/worker.py
+    command: /app/.venv/bin/arq workers.worker.WorkerSettings
+    mem_limit: 512m
+    cpus: "1.0"
 
 volumes:
   postgres_data:

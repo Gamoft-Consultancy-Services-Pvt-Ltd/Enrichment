@@ -2,6 +2,7 @@
 
 from core.exceptions import (
     AppError,
+    AuthenticationError,
     ConflictError,
     ExternalServiceError,
     NotFoundError,
@@ -47,3 +48,12 @@ def test_external_service_error_is_502() -> None:
 
     assert isinstance(error, AppError)
     assert error.status_code == 502
+
+
+def test_authentication_error_is_401() -> None:
+    """AuthenticationError is an AppError with a 401 status."""
+    error = AuthenticationError("nope")
+
+    assert isinstance(error, AppError)
+    assert error.status_code == 401
+    assert error.message == "nope"
