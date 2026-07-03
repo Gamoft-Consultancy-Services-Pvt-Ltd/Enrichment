@@ -69,13 +69,17 @@ async def health(request: Request) -> Response:
         async with async_session_factory() as session:
             await session.execute(text("SELECT 1"))
     except Exception as exc:
-        errors.append(f"db: {exc}")
+        # Log the detail server-side; never expose raw exception text to callers
+        # (CodeQL py/stack-trace-exposure — it can carry internal connection info).
+        log.warning("health check failed", component="db", error=str(exc))
+        errors.append("db")
 
     try:
         pool = request.app.state.arq_pool
         await pool.ping()
     except Exception as exc:
-        errors.append(f"redis: {exc}")
+        log.warning("health check failed", component="redis", error=str(exc))
+        errors.append("redis")
 
     if errors:
         return JSONResponse({"status": "degraded", "errors": errors}, status_code=503)
