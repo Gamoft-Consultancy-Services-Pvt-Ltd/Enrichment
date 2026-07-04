@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from groq import AsyncGroq
+from langfuse.decorators import langfuse_context, observe
 
 from core.config import get_settings
 from core.exceptions import ExternalServiceError
@@ -41,6 +42,7 @@ _CLASSIFY_INPUT_SCHEMA: dict[str, object] = {
 }
 
 
+@observe(as_type="generation")
 async def call_with_tool(
     *,
     prompt: str,
@@ -82,6 +84,18 @@ async def call_with_tool(
         raise ExternalServiceError("Groq returned no tool_call in response")
 
     result: dict[str, Any] = json.loads(tool_calls[0].function.arguments)
+    usage = (
+        {"input": response.usage.prompt_tokens, "output": response.usage.completion_tokens}
+        if response.usage is not None
+        else None
+    )
+    langfuse_context.update_current_observation(
+        name=tool_name,
+        model=model,
+        input=prompt,
+        output=result,
+        usage=usage,
+    )
     return result
 
 
@@ -94,9 +108,10 @@ async def classify_message(text: str) -> dict[str, Any]:
 
     Raises ExternalServiceError on API failure.
     """
-    return await call_with_tool(
+    result: dict[str, Any] = await call_with_tool(
         prompt=text,
         tool_name=_CLASSIFY_TOOL_NAME,
         tool_description=_CLASSIFY_TOOL_DESCRIPTION,
         input_schema=_CLASSIFY_INPUT_SCHEMA,
     )
+    return result

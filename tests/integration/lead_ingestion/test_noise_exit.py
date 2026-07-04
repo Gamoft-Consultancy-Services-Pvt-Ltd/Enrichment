@@ -37,6 +37,10 @@ async def _make_tenant(session: AsyncSession) -> UUID:
             primary_contact_email="test@wanoise.com",
             business_type=BusinessType.B2C,
             website_url="https://wanoise.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     return tenant.id

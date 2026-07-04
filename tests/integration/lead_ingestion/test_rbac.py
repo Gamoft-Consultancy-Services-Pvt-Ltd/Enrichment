@@ -34,6 +34,10 @@ async def _seed_tenant(session: AsyncSession) -> uuid.UUID:
             primary_contact_email=f"admin_{uuid.uuid4().hex[:6]}@rbac.com",
             business_type=BusinessType.B2B,
             website_url="https://rbac.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     await session.commit()

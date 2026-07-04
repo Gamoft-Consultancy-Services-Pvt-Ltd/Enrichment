@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -9,11 +10,25 @@ from pydantic import ValidationError
 
 from shared.tenant.schemas import (
     BusinessType,
+    KybStatus,
     OnboardingStatus,
     TenantCreate,
     TenantRead,
     TenantStatus,
 )
+
+_VALID_PAN = "AAACX1234C"
+
+_BASE: dict[str, Any] = {
+    "company_name": "Acme",
+    "primary_contact_name": "Ada",
+    "primary_contact_email": "ada@acme.com",
+    "business_type": "B2B",
+    "website_url": "https://acme.com",
+    "pan_holder_name": "Acme Private Limited",
+    "pan_dob": "01/04/2019",
+    "consent": True,
+}
 
 
 def test_business_type_membership_is_exactly_b2b_and_b2c() -> None:
@@ -31,11 +46,8 @@ def test_tenant_status_membership_is_exact() -> None:
 
 def test_tenant_create_accepts_valid_input() -> None:
     data = TenantCreate(
-        company_name="Gamoft",
-        primary_contact_name="Asha",
-        primary_contact_email="asha@gamoft.com",
-        business_type=BusinessType.B2B,
-        website_url="https://gamoft.com",  # type: ignore[arg-type]
+        **_BASE,
+        pan=_VALID_PAN,
     )
     assert data.business_type is BusinessType.B2B
     # timezone/language fall back to defaults
@@ -59,11 +71,8 @@ def test_tenant_create_rejects_invalid_business_type() -> None:
 def test_tenant_create_rejects_invalid_email() -> None:
     with pytest.raises(ValidationError):
         TenantCreate(
-            company_name="Gamoft",
-            primary_contact_name="Asha",
-            primary_contact_email="not-an-email",
-            business_type=BusinessType.B2B,
-            website_url="https://gamoft.com",  # type: ignore[arg-type]
+            **{**_BASE, "primary_contact_email": "not-an-email"},
+            pan=_VALID_PAN,
         )
 
 
@@ -78,6 +87,60 @@ def test_tenant_create_rejects_missing_required_field() -> None:
         )
 
 
+def test_kyb_status_values() -> None:
+    assert KybStatus.PENDING == "PENDING"
+    assert KybStatus.VERIFIED == "VERIFIED"
+    assert KybStatus.FAILED == "FAILED"
+
+
+def test_tenant_create_accepts_valid_pan() -> None:
+    tc = TenantCreate(**_BASE, pan=_VALID_PAN)
+    assert tc.pan == _VALID_PAN
+
+
+def test_tenant_create_requires_consent_true() -> None:
+    # Missing consent → rejected.
+    data = {k: v for k, v in _BASE.items() if k != "consent"}
+    with pytest.raises(ValidationError):
+        TenantCreate(**data, pan=_VALID_PAN)
+    # consent=False → rejected.
+    with pytest.raises(ValidationError):
+        TenantCreate(**{**_BASE, "consent": False}, pan=_VALID_PAN)
+
+
+def test_tenant_create_uppercases_and_strips_pan() -> None:
+    tc = TenantCreate(**_BASE, pan=f"  {_VALID_PAN.lower()}  ")
+    assert tc.pan == _VALID_PAN
+
+
+def test_tenant_create_rejects_malformed_pan() -> None:
+    with pytest.raises(ValidationError):
+        TenantCreate(**_BASE, pan="NOTAPAN")
+
+
+def test_tenant_create_requires_pan() -> None:
+    with pytest.raises(ValidationError):
+        TenantCreate(**_BASE)
+
+
+def test_tenant_create_rejects_short_holder_name() -> None:
+    data = {**_BASE, "pan_holder_name": "A"}
+    with pytest.raises(ValidationError):
+        TenantCreate(**data, pan=_VALID_PAN)
+
+
+def test_tenant_create_rejects_malformed_dob() -> None:
+    data = {**_BASE, "pan_dob": "2019-04-01"}  # wrong format
+    with pytest.raises(ValidationError):
+        TenantCreate(**data, pan=_VALID_PAN)
+
+
+def test_tenant_read_exposes_pan_and_kyb_status() -> None:
+    fields = TenantRead.model_fields
+    assert "pan" in fields
+    assert "kyb_status" in fields
+
+
 def test_tenant_read_builds_from_orm_like_object() -> None:
     obj = SimpleNamespace(
         id=uuid4(),
@@ -86,6 +149,8 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
         primary_contact_email="asha@gamoft.com",
         business_type=BusinessType.B2B,
         website_url="https://gamoft.com",
+        pan="AAACX1234C",
+        kyb_status=KybStatus.PENDING,
         onboarding_status=OnboardingStatus.PENDING,
         status=TenantStatus.CREATED,
         timezone="UTC",
@@ -99,3 +164,5 @@ def test_tenant_read_builds_from_orm_like_object() -> None:
     assert read.status is TenantStatus.CREATED
     assert read.onboarding_status is OnboardingStatus.PENDING
     assert read.activated_at is None
+    assert read.pan == "AAACX1234C"
+    assert read.kyb_status == KybStatus.PENDING

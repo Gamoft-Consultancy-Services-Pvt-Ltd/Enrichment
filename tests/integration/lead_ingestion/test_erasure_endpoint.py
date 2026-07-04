@@ -63,6 +63,10 @@ async def client(
             primary_contact_email="admin@erasureep.com",
             business_type=BusinessType.B2C,
             website_url="https://erasureep.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     user = User(

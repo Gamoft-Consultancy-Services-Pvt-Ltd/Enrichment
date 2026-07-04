@@ -49,6 +49,20 @@ class Settings(BaseSettings):
     # Public base URL — used to build OAuth redirect URIs. Set to ngrok URL in dev.
     base_url: str = "http://localhost:8000"
 
+    # Langfuse (self-hosted AI observability). Empty keys disable tracing entirely.
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "http://langfuse:3000"
+
+    # PAN KYB verification via Sandbox/Quicko (clients/pan_client.py). Mock path is
+    # on by default so onboarding runs with no provider credentials; flip
+    # pan_use_mock off and set the Sandbox key/secret + base URL once available.
+    # pan_base_url: https://test-api.sandbox.co.in (sandbox) or https://api.sandbox.co.in.
+    pan_api_key: str = ""
+    pan_api_secret: str = ""
+    pan_base_url: str = ""
+    pan_use_mock: bool = True
+
     # Auth0 (managed auth provider). Empty defaults keep tests/local imports working.
     auth0_domain: str = ""
     auth0_audience: str = ""

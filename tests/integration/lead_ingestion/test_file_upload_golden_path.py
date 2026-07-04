@@ -69,6 +69,10 @@ async def _make_tenant_with_config(session: AsyncSession) -> UUID:
             primary_contact_email="priya@uploadco.com",
             business_type=BusinessType.B2C,
             website_url="https://uploadco.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     await config_service.create_active(session, tenant.id, _config_payload())
@@ -84,6 +88,10 @@ async def _make_tenant_no_config(session: AsyncSession) -> UUID:
             primary_contact_email="ravi@noconfig.com",
             business_type=BusinessType.B2B,
             website_url="https://noconfig.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     return tenant.id
@@ -188,6 +196,10 @@ async def client_empty_signals(
             primary_contact_email="meera@emptysig.com",
             business_type=BusinessType.B2B,
             website_url="https://emptysig.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     # Insert directly bypassing TenantConfigCreate validation (which rejects empty signals).

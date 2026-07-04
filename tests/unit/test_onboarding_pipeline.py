@@ -263,3 +263,59 @@ async def test_pipeline_falls_back_to_homepage_when_all_page_fetches_fail(
     calls = [c.args[2] for c in set_status_mock.call_args_list]
     assert OnboardingStatus.RUNNING in calls
     assert OnboardingStatus.COMPLETE in calls
+
+
+async def test_pipeline_tags_trace_with_tenant_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    tenant_id = uuid4()
+    mock_session = AsyncMock()
+
+    business_profile = {"industry": "SaaS", "target_market": "SMB"}
+    icp_data = {"buyer_role": "VP Sales", "company_size": "50-200"}
+    from shared.tenant_config.schemas import Dimension, Signal, Thresholds, Weights
+
+    sigs = [Signal(id=f"{d.value.lower()}_1", dimension=d, question="?") for d in Dimension]
+    weights = Weights(fit=0.2, intent=0.2, engagement=0.2, behaviour=0.2, context=0.2)
+    thresholds = Thresholds(hot=80, warm=55)
+
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.get_tenant",
+        AsyncMock(return_value=_mock_tenant(tenant_id)),
+    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.set_onboarding_status", AsyncMock())
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.search_site_pages",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.persona.run",
+        AsyncMock(return_value=business_profile),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.icp.run", AsyncMock(return_value=icp_data)
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.signals.run",
+        AsyncMock(return_value=(sigs, weights, thresholds)),
+    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.create_active", AsyncMock())
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.activate_tenant", AsyncMock())
+
+    mock_http_response = MagicMock()
+    mock_http_response.status_code = 200
+    mock_http_response.text = "<html><body>Acme sells CRM</body></html>"
+    mock_http_response.raise_for_status = MagicMock()
+
+    with (
+        patch("modules.tenant_onboarding.pipeline.httpx.AsyncClient") as mock_http,
+        patch("modules.tenant_onboarding.pipeline.langfuse_context") as mock_ctx,
+    ):
+        mock_http.return_value.__aenter__.return_value.get = AsyncMock(
+            return_value=mock_http_response
+        )
+        await run_pipeline(mock_session, tenant_id)
+
+    mock_ctx.update_current_trace.assert_called_once_with(
+        name="tenant-onboarding",
+        metadata={"tenant_id": str(tenant_id)},
+        tags=[str(tenant_id)],
+    )

@@ -63,6 +63,29 @@ services:
     mem_limit: 512m
     cpus: "1.0"
 
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: harshitagrawal.jhansi@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  langfuse:
+    image: langfuse/langfuse:2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: c92cd6817ae471ff07520d8c059ece027d81b69535196dfd03fcfddc7f7b8086
+      SALT: bed6c7ee83a0f82f6342fa7a930849816bb8ab071f3fcace612c219c16ecf4c7
+
 volumes:
   postgres_data:
   redis_data:

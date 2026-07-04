@@ -42,9 +42,10 @@ async def run(
         f"Extract a structured business profile based only on the information above. "
         f"Be factual and concise."
     )
-    return await call_with_tool(
+    result: dict[str, Any] = await call_with_tool(
         prompt=prompt,
         tool_name=_TOOL_NAME,
         tool_description=_TOOL_DESCRIPTION,
         input_schema=_INPUT_SCHEMA,
     )
+    return result

@@ -7,6 +7,7 @@ from arq.cron import cron
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from core.config import get_settings
+from core.observability import configure_langfuse, flush_langfuse
 from workers.jobs.instagram_refresh import run_instagram_token_refresh
 from workers.jobs.lead_ingestion import (
     run_lead_ad_capture,
@@ -16,13 +17,15 @@ from workers.jobs.lead_ingestion import (
 from workers.jobs.onboarding import run_onboarding_pipeline
 
 
-async def _on_startup(ctx: dict[str, object]) -> None:
+async def startup(ctx: dict[str, object]) -> None:
     engine: AsyncEngine = create_async_engine(get_settings().database_url)
     ctx["engine"] = engine
     ctx["session_factory"] = async_sessionmaker(engine, expire_on_commit=False)
+    configure_langfuse()
 
 
-async def _on_shutdown(ctx: dict[str, object]) -> None:
+async def shutdown(ctx: dict[str, object]) -> None:
+    flush_langfuse()
     engine = cast(AsyncEngine, ctx.get("engine"))
     if engine is not None:
         await engine.dispose()
@@ -31,8 +34,8 @@ async def _on_shutdown(ctx: dict[str, object]) -> None:
 class WorkerSettings:
     """ARQ worker configuration. Run with: uv run arq workers.worker.WorkerSettings"""
 
-    on_startup = _on_startup
-    on_shutdown = _on_shutdown
+    on_startup = startup
+    on_shutdown = shutdown
     max_tries = 2  # 1 retry on failure; dead-letters after 2nd failure
     functions = [
         run_onboarding_pipeline,

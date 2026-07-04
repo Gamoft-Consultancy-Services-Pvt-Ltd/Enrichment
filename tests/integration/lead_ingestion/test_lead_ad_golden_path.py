@@ -74,6 +74,10 @@ async def _make_tenant_with_config(session: AsyncSession) -> uuid.UUID:
             primary_contact_email=f"test_{uuid.uuid4().hex[:8]}@example.com",
             business_type=BusinessType.B2B,
             website_url="https://example.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     await config_service.create_active(session, tenant.id, _config_payload())
