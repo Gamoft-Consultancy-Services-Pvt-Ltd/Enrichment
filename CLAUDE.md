@@ -40,8 +40,10 @@ structured JSON output via Groq function calling (`llama-3.3-70b-versatile`,
 temperature=0). Only file in the project that imports `groq`.
 
 **`clients/pan_client.py` (complete):** Thin async wrapper around Sandbox
-(Quicko) for PAN identity verification. Validates PAN format and checks name +
-DOB match against government records.
+(Quicko) for PAN identity verification. Validates PAN format and returns the
+provider's name/DOB match flags — it only transports and parses. The actual
+gate (PAN valid AND name match AND DOB match) is enforced in
+`modules/tenant_onboarding/kyb.py`.
 
 **`modules/tenant_onboarding` (complete):** Fully automated three-agent pipeline
 triggered by `POST /onboarding`. No human review step.

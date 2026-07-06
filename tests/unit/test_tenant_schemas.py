@@ -135,6 +135,12 @@ def test_tenant_create_rejects_malformed_dob() -> None:
         TenantCreate(**data, pan=_VALID_PAN)
 
 
+def test_tenant_create_rejects_impossible_calendar_date() -> None:
+    data = {**_BASE, "pan_dob": "31/02/2020"}  # regex-valid but not a real date
+    with pytest.raises(ValidationError):
+        TenantCreate(**data, pan=_VALID_PAN)
+
+
 def test_tenant_read_exposes_pan_and_kyb_status() -> None:
     fields = TenantRead.model_fields
     assert "pan" in fields

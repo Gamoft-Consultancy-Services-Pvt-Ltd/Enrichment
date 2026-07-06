@@ -6,9 +6,21 @@ the codebase becomes a silent no-op — unit tests and local runs without
 Langfuse behave exactly as before.
 """
 
+import threading
+
 from langfuse.decorators import langfuse_context
 
 from core.config import Settings, get_settings
+from core.logging import get_logger
+
+log = get_logger(__name__)
+
+# Hard ceiling on shutdown flush. langfuse_context.flush() is blocking with no
+# timeout parameter, so if the Langfuse backend is unreachable its consumer
+# thread can hang indefinitely — and this runs on ARQ worker shutdown, blocking
+# restarts and deploys. We bound it and move on; a few dropped traces are an
+# acceptable price for a worker that always shuts down.
+_FLUSH_TIMEOUT_SECONDS = 5.0
 
 
 def configure_langfuse(settings: Settings | None = None) -> None:
@@ -26,5 +38,13 @@ def configure_langfuse(settings: Settings | None = None) -> None:
 
 
 def flush_langfuse() -> None:
-    """Deliver buffered traces now (the SDK batches and sends asynchronously)."""
-    langfuse_context.flush()
+    """Deliver buffered traces now (the SDK batches and sends asynchronously).
+
+    Bounded by `_FLUSH_TIMEOUT_SECONDS`: the flush runs in a daemon thread so a
+    hung/unreachable Langfuse backend can't stall worker shutdown indefinitely.
+    """
+    flusher = threading.Thread(target=langfuse_context.flush, daemon=True)
+    flusher.start()
+    flusher.join(timeout=_FLUSH_TIMEOUT_SECONDS)
+    if flusher.is_alive():
+        log.warning("langfuse_flush_timeout", timeout_seconds=_FLUSH_TIMEOUT_SECONDS)

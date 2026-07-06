@@ -41,8 +41,11 @@ adding logging plumbing to each module.
    tests and local runs without Langfuse behave exactly as before — no network,
    no behavioural change.
 4. **Self-hosted data stays in our Postgres.** The Langfuse container uses a
-   separate `langfuse` database inside the existing Postgres container. No data
-   leaves the deployment; account signup is local, not Langfuse Cloud.
+   separate `langfuse` database inside the existing Postgres container. Trace
+   data stays in the deployment and account signup is local, not Langfuse Cloud.
+   (Self-hosted Langfuse v2 does send anonymous *usage* telemetry to PostHog by
+   default — never trace/prompt content — which we disable via
+   `TELEMETRY_ENABLED=false` in the compose stack.)
 
 ## Forward compatibility note (agentic enrichment)
 

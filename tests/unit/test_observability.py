@@ -1,5 +1,6 @@
 """Unit tests for core/observability — Langfuse SDK wiring, no network."""
 
+import threading
 from unittest.mock import patch
 
 from core.observability import configure_langfuse, flush_langfuse
@@ -39,3 +40,19 @@ def test_flush_delegates_to_sdk() -> None:
         flush_langfuse()
 
     mock_ctx.flush.assert_called_once_with()
+
+
+def test_flush_returns_when_sdk_hangs() -> None:
+    """A hung flush must not block shutdown past the timeout — it logs and returns."""
+    release = threading.Event()
+
+    with (
+        patch("core.observability._FLUSH_TIMEOUT_SECONDS", 0.05),
+        patch("core.observability.langfuse_context") as mock_ctx,
+        patch("core.observability.log") as mock_log,
+    ):
+        mock_ctx.flush.side_effect = lambda: release.wait(5.0)
+        flush_langfuse()  # returns despite flush still blocking
+        mock_log.warning.assert_called_once()
+
+    release.set()  # let the daemon thread unwind

@@ -105,7 +105,7 @@ v1). If added later it goes **app-side** as a testable data file, not here.
 In **Actions → Triggers → post-login**, the gate runs **before** the custom-claims
 Action, so a rejected login fails fast before any claim work:
 
-```
+```text
 Start
   → block-free-email-domains        (deny free-email / unverified here)
   → set-custom-claims               (stamps email / role / tenant_id claims)

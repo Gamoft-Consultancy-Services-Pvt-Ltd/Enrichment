@@ -62,8 +62,9 @@ rely on the conjunction above.
 The app only verifies Auth0-issued JWTs (`auth/token.py`), so login method is an
 Auth0-tenant setting.
 
-- **Enable passwordless email** (magic link or email OTP) so any company mailbox
-  works regardless of host — Google Workspace, GoDaddy/Microsoft 365, Zoho, etc.
+- **Enable passwordless email** (email OTP code — magic link isn't supported on
+  New Universal Login; see the runbook) so any company mailbox works regardless
+  of host — Google Workspace, GoDaddy/Microsoft 365, Zoho, etc.
   This also *is* the email-control proof. (Google-only social login would break
   every non-Google-hosted company mailbox.)
 

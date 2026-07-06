@@ -68,6 +68,12 @@ def validate_dob(value: str) -> str:
     candidate = value.strip()
     if not DOB_PATTERN.match(candidate):
         raise ValueError("pan_dob must be DD/MM/YYYY")
+    # The pattern only bounds digit ranges, so impossible dates like 31/02/2020
+    # still match. Parse to reject them before they reach PAN record matching.
+    try:
+        datetime.strptime(candidate, "%d/%m/%Y")
+    except ValueError as exc:
+        raise ValueError("pan_dob must be a valid DD/MM/YYYY date") from exc
     return candidate
 
 

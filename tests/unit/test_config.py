@@ -113,8 +113,12 @@ def test_settings_serper_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPat
     assert settings.serper_api_key == ""
 
 
-def test_pan_settings_defaults() -> None:
+def test_pan_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """PAN verification defaults to the mock path with no credentials."""
+    monkeypatch.delenv("PAN_USE_MOCK", raising=False)
+    monkeypatch.delenv("PAN_API_KEY", raising=False)
+    monkeypatch.delenv("PAN_API_SECRET", raising=False)
+    monkeypatch.delenv("PAN_BASE_URL", raising=False)
     settings = build_settings()
     assert settings.pan_use_mock is True
     assert settings.pan_api_key == ""

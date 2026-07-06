@@ -75,7 +75,13 @@ async def onboard(
         existing = await get_tenant(session, user.tenant_id)  # raises NotFoundError if gone
         # onboarding_status is a String column -> compare with == (a plain str), not is.
         if existing.onboarding_status == OnboardingStatus.PENDING:
-            await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(existing.id))
+            # Deterministic job id: arq drops a duplicate enqueue for the same tenant,
+            # so a stale PENDING read can't start a second onboarding run.
+            await arq_pool.enqueue_job(
+                "run_onboarding_pipeline",
+                tenant_id=str(existing.id),
+                _job_id=f"onboarding:{existing.id}",
+            )
             return TenantRead.model_validate(existing)
         raise ConflictError("User is already onboarded to a tenant")
 
@@ -88,7 +94,11 @@ async def onboard(
     await set_user_tenant(session, user, tenant.id)
     # If enqueue fails here the tenant is VERIFIED but PENDING; the user can simply retry
     # /onboarding and the idempotent-recovery branch above will re-enqueue it.
-    await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant.id))
+    await arq_pool.enqueue_job(
+        "run_onboarding_pipeline",
+        tenant_id=str(tenant.id),
+        _job_id=f"onboarding:{tenant.id}",
+    )
     try:
         await _update_auth0_user_metadata(user.auth0_sub, str(tenant.id))
     except Exception:
