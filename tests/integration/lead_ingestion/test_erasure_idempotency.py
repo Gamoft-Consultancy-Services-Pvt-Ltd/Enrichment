@@ -26,6 +26,10 @@ async def tenant_id(session: AsyncSession) -> uuid.UUID:
             primary_contact_email="admin@idemptest.com",
             business_type=BusinessType.B2C,
             website_url="https://idemptest.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     await session.commit()

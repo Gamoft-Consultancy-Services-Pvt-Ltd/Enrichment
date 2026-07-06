@@ -55,6 +55,10 @@ async def make_tenant(session: Any) -> Any:
             primary_contact_email=f"admin-{uuid4().hex[:6]}@comptest.example.com",
             business_type=BusinessType.B2C,
             website_url="https://comptest.example.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
 

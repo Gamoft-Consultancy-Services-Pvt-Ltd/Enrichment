@@ -23,6 +23,8 @@ def _make_tool_call_response(tool_name: str, data: dict[str, Any]) -> MagicMock:
 
     response = MagicMock()
     response.choices = [choice]
+    response.usage.prompt_tokens = 100
+    response.usage.completion_tokens = 50
     return response
 
 
@@ -75,3 +77,29 @@ async def test_call_with_tool_raises_when_no_tool_calls() -> None:
                 tool_description="desc",
                 input_schema={"type": "object", "properties": {}, "required": []},
             )
+
+
+async def test_call_with_tool_records_langfuse_generation() -> None:
+    """The Langfuse observation gets model, prompt, structured output, and token usage."""
+    expected = {"industry": "SaaS"}
+    mock_create = AsyncMock(return_value=_make_tool_call_response("my_tool", expected))
+
+    with (
+        patch("clients.groq_client.AsyncGroq") as mock_client_cls,
+        patch("clients.groq_client.langfuse_context") as mock_ctx,
+    ):
+        mock_client_cls.return_value.chat.completions.create = mock_create
+        await call_with_tool(
+            prompt="test prompt",
+            tool_name="my_tool",
+            tool_description="desc",
+            input_schema={"type": "object", "properties": {}, "required": []},
+        )
+
+    mock_ctx.update_current_observation.assert_called_once()
+    kwargs = mock_ctx.update_current_observation.call_args.kwargs
+    assert kwargs["name"] == "my_tool"
+    assert kwargs["model"] == "llama-3.3-70b-versatile"
+    assert kwargs["input"] == "test prompt"
+    assert kwargs["output"] == expected
+    assert kwargs["usage"] == {"input": 100, "output": 50}

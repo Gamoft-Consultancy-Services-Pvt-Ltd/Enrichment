@@ -63,6 +63,31 @@ services:
     mem_limit: 512m
     cpus: "1.0"
 
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:5050:80"
+    depends_on:
+      - postgres
+
+  langfuse:
+    image: langfuse/langfuse:2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      # Local-dev defaults only. Set real values in .env for any shared/hosted run.
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-nextauth-secret-change-me}
+      SALT: ${LANGFUSE_SALT:-dev-only-salt-change-me}
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+
 volumes:
   postgres_data:
   redis_data:

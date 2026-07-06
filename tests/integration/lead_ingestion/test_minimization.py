@@ -63,6 +63,10 @@ async def client(
             primary_contact_email="priya@mintest.com",
             business_type=BusinessType.B2C,
             website_url="https://mintest.com",  # type: ignore[arg-type]
+            pan="AAACX1234C",
+            pan_holder_name="Test Holder Pvt Ltd",
+            pan_dob="01/04/2019",
+            consent=True,
         ),
     )
     await config_service.create_active(session, tenant.id, _config_payload())

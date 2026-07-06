@@ -1,4 +1,4 @@
-"""The /onboarding endpoint — submits business info, creates tenant, starts pipeline."""
+"""The /onboarding endpoint — verify PAN (KYB), create the tenant, start pipeline."""
 
 from typing import Annotated
 
@@ -13,10 +13,11 @@ from auth.models import User
 from auth.service import set_user_tenant
 from core.config import get_settings
 from core.db import get_session
-from core.exceptions import ConflictError
+from core.exceptions import ConflictError, UnprocessableError
 from core.queue import get_arq_pool
-from shared.tenant.schemas import TenantCreate, TenantRead
-from shared.tenant.service import create_tenant
+from modules.tenant_onboarding.kyb import verify_pan_kyb
+from shared.tenant.schemas import OnboardingStatus, TenantCreate, TenantRead
+from shared.tenant.service import create_tenant, get_tenant
 
 router = APIRouter()
 log = structlog.get_logger(__name__)
@@ -64,14 +65,40 @@ async def onboard(
     session: Annotated[AsyncSession, Depends(get_session)],
     arq_pool: Annotated[ArqRedis, Depends(get_arq_pool)],
 ) -> TenantRead:
-    """Create the current user's tenant from their business info, then start the pipeline."""
+    """Verify the PAN, then (only on success) create the tenant and start the pipeline.
+
+    Idempotent recovery: if the user already has a tenant whose pipeline never started
+    (onboarding_status PENDING — the enqueue-failure case), re-enqueue and return it
+    instead of 409. Any other status is a genuine repeat onboarding -> 409.
+    """
     if user.tenant_id is not None:
+        existing = await get_tenant(session, user.tenant_id)  # raises NotFoundError if gone
+        # onboarding_status is a String column -> compare with == (a plain str), not is.
+        if existing.onboarding_status == OnboardingStatus.PENDING:
+            # Deterministic job id: arq drops a duplicate enqueue for the same tenant,
+            # so a stale PENDING read can't start a second onboarding run.
+            await arq_pool.enqueue_job(
+                "run_onboarding_pipeline",
+                tenant_id=str(existing.id),
+                _job_id=f"onboarding:{existing.id}",
+            )
+            return TenantRead.model_validate(existing)
         raise ConflictError("User is already onboarded to a tenant")
-    # Two commits (create_tenant, then set_user_tenant); a crash between them can
-    # leave an orphan Tenant. Accepted for this slice.
-    tenant = await create_tenant(session, data)
+
+    # Verify-then-create: a failed match creates nothing, so there are no orphan rows.
+    company_data = await verify_pan_kyb(data.pan, data.pan_holder_name, data.pan_dob)
+    if company_data is None:
+        raise UnprocessableError("PAN could not be verified")
+
+    tenant = await create_tenant(session, data, kyb_company_data=company_data)
     await set_user_tenant(session, user, tenant.id)
-    await arq_pool.enqueue_job("run_onboarding_pipeline", tenant_id=str(tenant.id))
+    # If enqueue fails here the tenant is VERIFIED but PENDING; the user can simply retry
+    # /onboarding and the idempotent-recovery branch above will re-enqueue it.
+    await arq_pool.enqueue_job(
+        "run_onboarding_pipeline",
+        tenant_id=str(tenant.id),
+        _job_id=f"onboarding:{tenant.id}",
+    )
     try:
         await _update_auth0_user_metadata(user.auth0_sub, str(tenant.id))
     except Exception:
