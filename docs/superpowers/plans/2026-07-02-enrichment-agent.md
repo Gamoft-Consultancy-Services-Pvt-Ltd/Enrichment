@@ -967,10 +967,47 @@ class LeadEnriched(Event):
 Run: `uv run pytest tests/unit/test_event_schemas.py -v`
 Expected: PASS.
 
+- [ ] **Step 4b: Wire lead_ingestion to populate the payload (Option A)**
+
+> Added after the plan was written: `lead_ingestion` now exists and emits
+> `LeadReceived`. Because `payload` is required, its one emission site must fill
+> it. `NormalisedChannelEvent` already carries the fields.
+
+In `modules/lead_ingestion/pipeline.py`, import `LeadPayload` alongside
+`LeadReceived` and populate the event from the `NormalisedChannelEvent`:
+
+```python
+from shared.events.schemas import LeadPayload, LeadReceived
+```
+
+```python
+    return (
+        lead,
+        LeadReceived(
+            tenant_id=event.tenant_id,
+            lead_id=lead.id,
+            source=event.source,
+            payload=LeadPayload(
+                name=event.full_name,
+                email=event.email,
+                phone=event.phone,
+                source=event.source,
+                first_party=event.extra_fields,
+            ),
+        ),
+    )
+```
+
+Also remove the stray blank line in `modules/lead_ingestion/schemas/normalised_event.py`
+(after `source: LeadSource`) so ruff stays clean.
+
+The lead_ingestion integration tests assert only on `lead_id`/`tenant_id`/`source`
+and drive the real pipeline, so they keep passing unchanged.
+
 - [ ] **Step 5: Commit**
 
 ```bash
-git add shared/events/schemas.py tests/unit/test_event_schemas.py
+git add shared/events/schemas.py tests/unit/test_event_schemas.py modules/lead_ingestion/pipeline.py modules/lead_ingestion/schemas/normalised_event.py
 git commit -m "feat: fatten LeadReceived/LeadEnriched with event-carried payload and result"
 ```
 
