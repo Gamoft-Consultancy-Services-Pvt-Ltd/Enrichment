@@ -72,7 +72,6 @@ async def research[T: BaseModel](*, goal: str, output_schema: type[T]) -> T:
             {"messages": [SystemMessage(content=_SYSTEM), HumanMessage(content=goal)]},
             config={"recursion_limit": _RECURSION_LIMIT, "callbacks": callbacks},
         )
+        return cast(T, state["structured_response"])
     except Exception as exc:
         raise ExternalServiceError(f"research agent failed: {exc}") from exc
-
-    return cast(T, state["structured_response"])
