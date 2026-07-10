@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from groq import AsyncGroq
+from langchain_groq import ChatGroq
 from langfuse.decorators import langfuse_context, observe
 
 from core.config import get_settings
@@ -97,6 +98,11 @@ async def call_with_tool(
         usage=usage,
     )
     return result
+
+
+def get_chat_model() -> ChatGroq:
+    """Return a configured ChatGroq for LangGraph agents (temperature 0)."""
+    return ChatGroq(model=_MODEL, temperature=0.0, api_key=get_settings().groq_api_key)
 
 
 async def classify_message(text: str) -> dict[str, Any]:

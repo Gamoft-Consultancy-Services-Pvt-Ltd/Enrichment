@@ -103,3 +103,16 @@ async def test_call_with_tool_records_langfuse_generation() -> None:
     assert kwargs["input"] == "test prompt"
     assert kwargs["output"] == expected
     assert kwargs["usage"] == {"input": 100, "output": 50}
+
+
+def test_get_chat_model_configures_groq(monkeypatch: pytest.MonkeyPatch) -> None:
+    from clients import groq_client
+    from tests.helpers import build_settings
+
+    monkeypatch.setattr(
+        groq_client, "get_settings", lambda: build_settings(groq_api_key="test-key")
+    )
+    model = groq_client.get_chat_model()
+    assert model.model_name == "llama-3.3-70b-versatile"
+    # langchain-groq normalizes temperature 0.0 -> 1e-8 (deterministic); see ChatGroq
+    assert model.temperature == pytest.approx(0.0, abs=1e-6)
