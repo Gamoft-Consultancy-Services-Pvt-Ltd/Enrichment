@@ -1,25 +1,42 @@
-"""Pipeline: fetches the tenant's website and runs the three agents in sequence."""
+"""Pipeline: research the tenant's company, then run the three agents in sequence."""
 
-import asyncio
-import re
-from urllib.parse import urlparse
+from typing import Any
 from uuid import UUID
 
-import httpx
 from langfuse.decorators import langfuse_context, observe
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from clients.serper_client import search_site_pages
 from modules.tenant_onboarding.agents import icp, persona, signals
+from shared.research.agent import research
 from shared.tenant.schemas import OnboardingStatus
 from shared.tenant.service import activate_tenant, get_tenant, set_onboarding_status
 from shared.tenant_config.schemas import TenantConfigCreate
 from shared.tenant_config.service import create_active
 
 
+class CompanyInfo(BaseModel):
+    """Structured company facts gathered by the research agent for onboarding."""
+
+    summary: str = ""
+    industry: str = ""
+    products_services: str = ""
+    target_market: str = ""
+    notable_facts: list[str] = Field(default_factory=list)
+
+
+def _company_goal(website_url: str, company_name: str) -> str:
+    """Compose the research goal for a tenant's own company."""
+    return (
+        f"Research the company '{company_name}' (website: {website_url}). Summarize what "
+        f"it does, its industry, its products or services, its target market, and any "
+        f"notable facts. Base everything only on what you find."
+    )
+
+
 @observe(capture_input=False)
 async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
-    """Run the full onboarding pipeline: website fetch → 3 agents → activate."""
+    """Run the full onboarding pipeline: research → 3 agents → activate."""
     langfuse_context.update_current_trace(
         name="tenant-onboarding",
         metadata={"tenant_id": str(tenant_id)},
@@ -29,24 +46,15 @@ async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
     try:
         tenant = await get_tenant(session, tenant_id)
 
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            domain = _extract_domain(str(tenant.website_url))
-            urls = await search_site_pages(domain, num=5)
-            if urls:
-                gather_results = await asyncio.gather(
-                    *[http.get(u) for u in urls], return_exceptions=True
-                )
-                page_results: list[httpx.Response | BaseException] = list(gather_results)
-                website_text = _combine_page_texts(page_results)
-            else:
-                website_text = ""
-            if not website_text:
-                website_text = await _fallback_fetch(http, str(tenant.website_url))
+        company_info = await research(
+            goal=_company_goal(str(tenant.website_url), tenant.company_name),
+            output_schema=CompanyInfo,
+        )
 
-        business_profile = await persona.run(
+        business_profile: dict[str, Any] = await persona.run(
             company_name=tenant.company_name,
             business_type=tenant.business_type,
-            website_text=website_text,
+            company_info=company_info.model_dump(),
         )
         icp_data = await icp.run(business_profile)
         sigs, weights, thresholds = await signals.run(business_profile, icp_data)
@@ -65,34 +73,3 @@ async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
     except Exception:
         await set_onboarding_status(session, tenant_id, OnboardingStatus.FAILED)
         raise
-
-
-def _extract_domain(url: str) -> str:
-    """Return the bare hostname from a URL ('https://acme.com/x' → 'acme.com')."""
-    return urlparse(url).netloc
-
-
-def _combine_page_texts(results: list[httpx.Response | BaseException]) -> str:
-    """Strip HTML from successful responses and join with double newlines."""
-    parts = []
-    for r in results:
-        if isinstance(r, BaseException):
-            continue
-        if r.status_code != 200:
-            continue
-        parts.append(_strip_html(r.text))
-    return "\n\n".join(parts)
-
-
-async def _fallback_fetch(http: httpx.AsyncClient, url: str) -> str:
-    """Fetch url directly and return stripped plain text."""
-    response = await http.get(url)
-    response.raise_for_status()
-    return _strip_html(response.text)
-
-
-def _strip_html(html: str) -> str:
-    """Extract readable text from HTML without external dependencies."""
-    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
