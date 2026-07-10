@@ -1,5 +1,6 @@
 """Persona agent — derives a structured business profile from website content."""
 
+import json
 from typing import Any
 
 from clients.groq_client import call_with_tool
@@ -31,14 +32,14 @@ _INPUT_SCHEMA: dict[str, Any] = {
 async def run(
     company_name: str,
     business_type: BusinessType,
-    website_text: str,
+    company_info: dict[str, Any],
 ) -> dict[str, Any]:
-    """Return a business_profile dict derived from the website content."""
+    """Return a business_profile dict derived from researched company info."""
     prompt = (
         f"You are analyzing a business to build its profile.\n\n"
         f"Company name: {company_name}\n"
         f"Business type: {business_type.value}\n\n"
-        f"Website content:\n{website_text[:8000]}\n\n"
+        f"Researched company information (JSON):\n{json.dumps(company_info, indent=2)}\n\n"
         f"Extract a structured business profile based only on the information above. "
         f"Be factual and concise."
     )

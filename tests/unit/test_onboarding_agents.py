@@ -7,25 +7,21 @@ from shared.tenant.schemas import BusinessType
 from shared.tenant_config.schemas import Dimension, Thresholds, Weights
 
 
-async def test_persona_agent_returns_business_profile() -> None:
-    expected = {
-        "industry": "SaaS",
-        "target_market": "SMB",
-        "products_services": "CRM",
-        "company_size": "startup",
-        "geography": "Global",
-        "value_proposition": "Saves time",
-    }
+async def test_persona_run_builds_profile_from_company_info() -> None:
+    profile = {"industry": "SaaS", "target_market": "SMB", "products_services": "CRM",
+               "company_size": "50", "geography": "India", "value_proposition": "fast"}
     with patch(
         "modules.tenant_onboarding.agents.persona.call_with_tool",
-        new=AsyncMock(return_value=expected),
-    ):
+        AsyncMock(return_value=profile),
+    ) as mock_call:
         result = await persona.run(
             company_name="Acme",
             business_type=BusinessType.B2B,
-            website_text="We build CRM software for small businesses.",
+            company_info={"summary": "Acme makes CRM", "industry": "SaaS"},
         )
-    assert result == expected
+    assert result == profile
+    prompt = mock_call.call_args.kwargs["prompt"]
+    assert "Acme makes CRM" in prompt
 
 
 async def test_icp_agent_returns_icp() -> None:
