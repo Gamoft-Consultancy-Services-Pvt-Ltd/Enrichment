@@ -24,7 +24,7 @@ from modules.lead_ingestion.pre_flight import check_pre_flight
 from modules.lead_ingestion.schemas.filter_result import FilterClassification
 from modules.lead_ingestion.schemas.normalised_event import NormalisedChannelEvent
 from modules.lead_ingestion.two_stage_filter import run_filter
-from shared.events.schemas import LeadReceived
+from shared.events.schemas import LeadPayload, LeadReceived
 
 
 async def run_capture(
@@ -85,6 +85,13 @@ async def run_capture(
             tenant_id=event.tenant_id,
             lead_id=lead.id,
             source=event.source,
+            payload=LeadPayload(
+                name=event.full_name,
+                email=event.email,
+                phone=event.phone,
+                source=event.source,
+                first_party=event.extra_fields,
+            ),
         ),
     )
 

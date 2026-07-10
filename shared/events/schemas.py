@@ -8,7 +8,7 @@ first consumer (see ADR 0001). Other code imports these types directly, e.g.
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,6 +32,35 @@ class LeadBucket(StrEnum):
     HOT = "HOT"
     WARM = "WARM"
     COLD = "COLD"
+
+
+class LeadPayload(BaseModel):
+    """Normalized lead data carried on LeadReceived (event-carried state).
+
+    Enrichment reads this off the event and never touches lead_ingestion's tables.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    company: str | None = None
+    source: LeadSource
+    first_party: dict[str, Any] = Field(default_factory=dict)
+
+
+class EnrichmentResult(BaseModel):
+    """Structured enrichment output carried on LeadEnriched, consumed by scoring."""
+
+    model_config = ConfigDict(frozen=True)
+
+    company_info: dict[str, Any] = Field(default_factory=dict)
+    person_info: dict[str, Any] = Field(default_factory=dict)
+    order_history: dict[str, Any] | None = None
+    sources: list[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    reasoning_trace: str = ""
 
 
 class Event(BaseModel):
@@ -60,13 +89,15 @@ class LeadReceived(Event):
     event_type: Literal["LeadReceived"] = "LeadReceived"
     lead_id: UUID
     source: LeadSource
+    payload: LeadPayload
 
 
 class LeadEnriched(Event):
-    """enrichment finished gathering external data for a lead; ready to score."""
+    """enrichment finished gathering data for a lead; ready to score."""
 
     event_type: Literal["LeadEnriched"] = "LeadEnriched"
     lead_id: UUID
+    result: EnrichmentResult
 
 
 class LeadScored(Event):

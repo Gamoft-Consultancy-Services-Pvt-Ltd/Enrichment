@@ -7,9 +7,11 @@ import pytest
 from pydantic import ValidationError
 
 from shared.events.schemas import (
+    EnrichmentResult,
     Event,
     LeadBucket,
     LeadEnriched,
+    LeadPayload,
     LeadReceived,
     LeadScored,
     LeadSource,
@@ -78,12 +80,23 @@ def test_tenant_activated_is_frozen() -> None:
         evt.tenant_id = uuid4()
 
 
-def test_lead_received_carries_lead_id_and_source() -> None:
+def test_lead_received_carries_lead_id_source_and_payload() -> None:
     tenant_id, lead_id = uuid4(), uuid4()
-    evt = LeadReceived(tenant_id=tenant_id, lead_id=lead_id, source=LeadSource.EMAIL)
+    payload = LeadPayload(email="a@b.com", source=LeadSource.EMAIL)
+    evt = LeadReceived(
+        tenant_id=tenant_id, lead_id=lead_id, source=LeadSource.EMAIL, payload=payload
+    )
     assert evt.event_type == "LeadReceived"
     assert evt.lead_id == lead_id
     assert evt.source is LeadSource.EMAIL
+    assert evt.payload.email == "a@b.com"
+
+
+def test_lead_received_requires_payload() -> None:
+    with pytest.raises(ValidationError):
+        LeadReceived.model_validate(
+            {"tenant_id": str(uuid4()), "lead_id": str(uuid4()), "source": "EMAIL"}
+        )
 
 
 def test_lead_received_requires_lead_id_and_source() -> None:
@@ -98,11 +111,18 @@ def test_lead_received_rejects_invalid_source() -> None:
         )
 
 
-def test_lead_enriched_carries_lead_id() -> None:
+def test_lead_enriched_carries_lead_id_and_result() -> None:
     tenant_id, lead_id = uuid4(), uuid4()
-    evt = LeadEnriched(tenant_id=tenant_id, lead_id=lead_id)
+    result = EnrichmentResult(confidence=0.8)
+    evt = LeadEnriched(tenant_id=tenant_id, lead_id=lead_id, result=result)
     assert evt.event_type == "LeadEnriched"
     assert evt.lead_id == lead_id
+    assert evt.result.confidence == 0.8
+
+
+def test_enrichment_result_rejects_out_of_range_confidence() -> None:
+    with pytest.raises(ValidationError):
+        EnrichmentResult(confidence=1.5)
 
 
 def test_lead_enriched_requires_lead_id() -> None:
