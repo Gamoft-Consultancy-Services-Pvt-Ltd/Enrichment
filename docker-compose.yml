@@ -36,6 +36,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/leadengine
       REDIS_URL: redis://redis:6379/0
+      MCP_WEB_SEARCH_URL: http://mcp-web-search:8000/mcp
     ports:
       - "8000:8000"
     depends_on:
@@ -43,6 +44,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-web-search:
+        condition: service_started
     mem_limit: 512m
     cpus: "1.0"
 
@@ -54,14 +57,29 @@ services:
       PYTHONPATH: /app
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/leadengine
       REDIS_URL: redis://redis:6379/0
+      MCP_WEB_SEARCH_URL: http://mcp-web-search:8000/mcp
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-web-search:
+        condition: service_started
     command: /app/.venv/bin/arq workers.worker.WorkerSettings
     mem_limit: 512m
     cpus: "1.0"
+
+  mcp-web-search:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      FASTMCP_HOST: 0.0.0.0
+      FASTMCP_PORT: "8000"
+    command: /app/.venv/bin/python -m mcp_servers.web_search.server
+    mem_limit: 256m
+    cpus: "0.5"
 
   pgadmin:
     image: dpage/pgadmin4
