@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     groq_api_key: str = ""
     serper_api_key: str = ""
+    mcp_web_search_url: str = "http://localhost:8000/mcp"
 
     # Lead ingestion — channel credentials and Meta webhook. Empty defaults keep
     # tests/local imports working (mirrors Auth0 field pattern).

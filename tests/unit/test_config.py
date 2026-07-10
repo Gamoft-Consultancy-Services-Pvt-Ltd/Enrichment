@@ -145,3 +145,15 @@ def test_settings_langfuse_overridable() -> None:
     assert settings.langfuse_public_key == "pk-lf-test"
     assert settings.langfuse_secret_key == "sk-lf-test"
     assert settings.langfuse_host == "http://localhost:3000"
+
+
+def test_mcp_web_search_url_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MCP_WEB_SEARCH_URL", raising=False)
+    settings = build_settings()
+    assert settings.mcp_web_search_url == "http://localhost:8000/mcp"
+
+
+def test_mcp_web_search_url_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MCP_WEB_SEARCH_URL", "http://mcp-web-search:8000/mcp")
+    settings = build_settings()
+    assert settings.mcp_web_search_url == "http://mcp-web-search:8000/mcp"
