@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from clients.serper_client import search_site_pages
+from clients.serper_client import search, search_site_pages
 from core.exceptions import ExternalServiceError
 
 
@@ -84,3 +84,55 @@ async def test_raises_external_service_error_on_network_failure() -> None:
         )
         with pytest.raises(ExternalServiceError, match="Serper request failed"):
             await search_site_pages("example.com")
+
+
+async def test_search_digests_knowledge_graph_and_organic() -> None:
+    body = {
+        "knowledgeGraph": {
+            "title": "Acme Inc",
+            "description": "Acme makes CRM software.",
+            "attributes": {"Founded": "2010", "HQ": "Pune"},
+        },
+        "organic": [
+            {"title": "Acme raises Series B", "snippet": "Acme raised $20M.", "link": "https://news/1"},
+            {"title": "Acme careers", "snippet": "We are hiring.", "link": "https://acme.com/jobs"},
+        ],
+    }
+    mock_resp = _make_response(200, body)
+    with patch("clients.serper_client.httpx.AsyncClient") as mock_cls:
+        mock_post = AsyncMock(return_value=mock_resp)
+        mock_cls.return_value.__aenter__.return_value.post = mock_post
+        digest = await search("Acme Inc company", num=5)
+
+    assert "Acme Inc" in digest
+    assert "CRM software" in digest
+    assert "Founded: 2010" in digest
+    assert "Acme raised $20M." in digest
+    assert "https://news/1" in digest
+    called_json = mock_post.call_args.kwargs.get("json", {})
+    assert called_json.get("q") == "Acme Inc company"
+    assert called_json.get("num") == 5
+
+
+async def test_search_returns_empty_string_when_no_results() -> None:
+    mock_resp = _make_response(200, {})
+    with patch("clients.serper_client.httpx.AsyncClient") as mock_cls:
+        mock_cls.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_resp)
+        assert await search("nothing here") == ""
+
+
+async def test_search_raises_on_non_200() -> None:
+    mock_resp = _make_response(500, {})
+    with patch("clients.serper_client.httpx.AsyncClient") as mock_cls:
+        mock_cls.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_resp)
+        with pytest.raises(ExternalServiceError, match="Serper returned 500"):
+            await search("boom")
+
+
+async def test_search_raises_on_network_failure() -> None:
+    with patch("clients.serper_client.httpx.AsyncClient") as mock_cls:
+        mock_cls.return_value.__aenter__.return_value.post = AsyncMock(
+            side_effect=Exception("connection refused")
+        )
+        with pytest.raises(ExternalServiceError, match="Serper request failed"):
+            await search("boom")
