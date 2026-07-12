@@ -4,6 +4,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import structlog
+from arq.connections import ArqRedis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from clients.meta_leads_client import fetch_lead_fields
@@ -24,9 +25,25 @@ from modules.lead_ingestion.service import (
     run_capture,
     run_capture_message,
 )
-from shared.events.schemas import LeadSource
+from shared.events.schemas import LeadReceived, LeadSource
 
 log = structlog.get_logger()
+
+
+async def _dispatch_enrichment(ctx: dict[str, object], received: LeadReceived | None) -> None:
+    """Enqueue the enrichment pipeline for a freshly captured lead.
+
+    De-duped by the `enrich:{lead_id}` job id so a redelivered capture does not
+    trigger a second enrichment while the first is still queued/running.
+    """
+    if received is None:
+        return
+    pool = cast(ArqRedis, ctx["redis"])
+    await pool.enqueue_job(
+        "run_lead_pipeline",
+        received.model_dump(mode="json"),
+        _job_id=f"enrich:{received.lead_id}",
+    )
 
 
 async def run_lead_capture(ctx: dict[str, object], payload_dict: dict[str, Any]) -> None:
@@ -64,7 +81,8 @@ async def run_lead_capture(ctx: dict[str, object], payload_dict: dict[str, Any])
             )
         else:
             return
-        await run_capture_message(session, event)
+        _lead, received = await run_capture_message(session, event)
+        await _dispatch_enrichment(ctx, received)
 
 
 async def run_lead_ad_capture(ctx: dict[str, object], payload_dict: dict[str, Any]) -> None:
@@ -117,7 +135,8 @@ async def run_lead_ad_capture(ctx: dict[str, object], payload_dict: dict[str, An
             channel_connection_id=channel_connection_id,
             raw_event_json=raw_payload or None,
         )
-        await run_capture(session, event)
+        _lead, received = await run_capture(session, event)
+        await _dispatch_enrichment(ctx, received)
 
 
 async def run_lead_capture_batch(ctx: dict[str, object], payload_dict: dict[str, Any]) -> None:
@@ -152,7 +171,8 @@ async def run_lead_capture_batch(ctx: dict[str, object], payload_dict: dict[str,
                     session.add(lead)
                     await session.commit()
                 else:
-                    await run_capture(session, event)
+                    _lead, received = await run_capture(session, event)
+                    await _dispatch_enrichment(ctx, received)
             except Exception as exc:
                 await session.rollback()
                 log.exception("batch_row_failed", row_index=i, error=str(exc))
