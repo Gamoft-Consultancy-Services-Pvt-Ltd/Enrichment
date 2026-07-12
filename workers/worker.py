@@ -15,6 +15,7 @@ from workers.jobs.lead_ingestion import (
     run_lead_capture_batch,
 )
 from workers.jobs.onboarding import run_onboarding_pipeline
+from workers.jobs.orchestration import run_lead_pipeline
 
 
 async def startup(ctx: dict[str, object]) -> None:
@@ -42,6 +43,7 @@ class WorkerSettings:
         run_lead_capture_batch,
         run_lead_capture,
         run_lead_ad_capture,
+        run_lead_pipeline,
     ]
     cron_jobs = [cron(run_instagram_token_refresh, hour=2, minute=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
