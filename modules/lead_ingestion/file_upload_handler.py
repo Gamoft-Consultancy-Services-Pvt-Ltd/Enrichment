@@ -140,7 +140,13 @@ async def handle_file_upload(
             )
             lead_ids.append(str(blocked.id))
             continue
-        lead, _ = await run_capture(session, event)
+        lead, received = await run_capture(session, event)
         lead_ids.append(str(lead.id))
+        if received is not None:
+            await arq_pool.enqueue_job(
+                "run_lead_pipeline",
+                received.model_dump(mode="json"),
+                _job_id=f"enrich:{received.lead_id}",
+            )
 
     return {"mode": "sync", "lead_ids": lead_ids, "row_count": len(str_rows)}
