@@ -396,9 +396,11 @@ async def test_dispatch_enqueues_pipeline_for_received_event() -> None:
     await li._dispatch_enrichment(ctx, received)
 
     pool.enqueue_job.assert_awaited_once()
-    assert pool.enqueue_job.await_args.args[0] == "run_lead_pipeline"
-    assert pool.enqueue_job.await_args.args[1] == received.model_dump(mode="json")
-    assert pool.enqueue_job.await_args.kwargs["_job_id"] == f"enrich:{received.lead_id}"
+    call = pool.enqueue_job.await_args
+    assert call is not None  # narrow _Call | None for mypy strict
+    assert call.args[0] == "run_lead_pipeline"
+    assert call.args[1] == received.model_dump(mode="json")
+    assert call.kwargs["_job_id"] == f"enrich:{received.lead_id}"
 
 
 async def test_dispatch_is_noop_when_no_event() -> None:
