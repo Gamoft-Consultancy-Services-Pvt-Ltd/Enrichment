@@ -93,7 +93,7 @@ will slot in later.
 that currently discard the capture result capture the tuple and enqueue via a
 small helper:
 ```python
-async def _enqueue_pipeline(ctx, received: LeadReceived | None) -> None:
+async def _dispatch_enrichment(ctx, received: LeadReceived | None) -> None:
     if received is not None:
         await cast(ArqRedis, ctx["redis"]).enqueue_job(
             "run_lead_pipeline",
