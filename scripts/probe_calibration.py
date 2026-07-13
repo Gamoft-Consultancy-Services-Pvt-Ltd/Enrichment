@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from clients.groq_client import classify_message
+from clients.llm_client import classify_message
 from modules.lead_ingestion.two_stage_filter import run_filter
 
 MESSAGES = [

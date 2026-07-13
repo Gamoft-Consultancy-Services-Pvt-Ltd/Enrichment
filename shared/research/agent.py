@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING, cast
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
-from clients.groq_client import get_chat_model
+from clients.llm_client import get_chat_model
 from core.config import get_settings
 from core.exceptions import ExternalServiceError
 
@@ -22,6 +23,19 @@ if TYPE_CHECKING:
 log = structlog.get_logger(__name__)
 
 _RECURSION_LIMIT = 12
+
+# Groq's llama models intermittently emit a malformed tool call that Groq rejects with
+# a 400 `tool_use_failed`; the identical request usually succeeds on a retry. Retry the
+# agent invocation a few times on that specific error (temperature stays 0).
+_MAX_TOOL_RETRIES = 2
+
+
+def _is_tool_use_failure(exc: BaseException) -> bool:
+    """True if `exc` (or a grouped sub-exception) is Groq's `tool_use_failed` 400."""
+    texts = [str(exc)]
+    if isinstance(exc, BaseExceptionGroup):
+        texts.extend(str(sub) for sub in exc.exceptions)
+    return any("tool_use_failed" in t or "Failed to call a function" in t for t in texts)
 
 _SYSTEM = (
     "You are a research agent. Use the web_search tool to gather the facts needed "
@@ -68,10 +82,22 @@ async def research[T: BaseModel](*, goal: str, output_schema: type[T]) -> T:
         agent = create_react_agent(get_chat_model(), tools, response_format=output_schema)
         handler = _langfuse_handler()
         callbacks = [handler] if handler is not None else []
-        state = await agent.ainvoke(
-            {"messages": [SystemMessage(content=_SYSTEM), HumanMessage(content=goal)]},
-            config={"recursion_limit": _RECURSION_LIMIT, "callbacks": callbacks},
-        )
-        return cast(T, state["structured_response"])
+        messages = {"messages": [SystemMessage(content=_SYSTEM), HumanMessage(content=goal)]}
+        config: RunnableConfig = {"recursion_limit": _RECURSION_LIMIT, "callbacks": callbacks}
+
+        for attempt in range(_MAX_TOOL_RETRIES + 1):
+            try:
+                state = await agent.ainvoke(messages, config=config)
+                return cast(T, state["structured_response"])
+            except Exception as exc:
+                if attempt < _MAX_TOOL_RETRIES and _is_tool_use_failure(exc):
+                    log.warning(
+                        "research agent hit Groq tool_use_failed; retrying",
+                        attempt=attempt + 1,
+                        max_attempts=_MAX_TOOL_RETRIES + 1,
+                    )
+                    continue
+                raise
+        raise AssertionError("unreachable: loop returns or raises")  # pragma: no cover
     except Exception as exc:
         raise ExternalServiceError(f"research agent failed: {exc}") from exc

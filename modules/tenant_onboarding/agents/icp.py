@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from clients.groq_client import call_with_tool
+from clients.llm_client import call_with_tool
 
 _TOOL_NAME = "output_icp"
 _TOOL_DESCRIPTION = "Output the structured ideal customer profile."

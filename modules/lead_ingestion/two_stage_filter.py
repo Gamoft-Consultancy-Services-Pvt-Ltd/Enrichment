@@ -13,7 +13,7 @@ returned as-is; pipeline.py routes it to the LEAD path unconditionally.
 
 import re
 
-from clients.groq_client import classify_message
+from clients.llm_client import classify_message
 from modules.lead_ingestion.exceptions import FilterClientError
 from modules.lead_ingestion.schemas.filter_result import FilterClassification, FilterResult
 
