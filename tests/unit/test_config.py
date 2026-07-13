@@ -113,13 +113,16 @@ def test_settings_serper_api_key_defaults_to_empty(monkeypatch: pytest.MonkeyPat
     assert settings.serper_api_key == ""
 
 
-def test_pan_settings_defaults() -> None:
+def test_pan_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     """PAN verification defaults to the mock path with no credentials."""
+    for var in ("PAN_USE_MOCK", "PAN_API_KEY", "PAN_API_SECRET", "PAN_BASE_URL", "PAN_TEST_BASE_URL"):
+        monkeypatch.delenv(var, raising=False)
     settings = build_settings()
     assert settings.pan_use_mock is True
     assert settings.pan_api_key == ""
     assert settings.pan_api_secret == ""
-    assert settings.pan_base_url == ""
+    assert settings.pan_base_url == "https://api.sandbox.co.in"
+    assert settings.pan_test_base_url == "https://test-api.sandbox.co.in"
 
 
 def test_settings_langfuse_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,3 +160,82 @@ def test_mcp_web_search_url_from_environment(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("MCP_WEB_SEARCH_URL", "http://mcp-web-search:8000/mcp")
     settings = build_settings()
     assert settings.mcp_web_search_url == "http://mcp-web-search:8000/mcp"
+
+
+def test_openrouter_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+    settings = build_settings()
+    assert settings.openrouter_api_key == ""
+    assert settings.openrouter_base_url == "https://openrouter.ai/api/v1"
+
+
+def test_openrouter_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("OPENROUTER_BASE_URL", "https://example.test/v1")
+    settings = build_settings()
+    assert settings.openrouter_api_key == "sk-or-test"
+    assert settings.openrouter_base_url == "https://example.test/v1"
+
+
+def test_pan_effective_base_url_uses_free_test_api_in_dev() -> None:
+    settings = build_settings(env="development", pan_base_url="https://api.sandbox.co.in")
+    assert settings.pan_effective_base_url == "https://test-api.sandbox.co.in"
+
+
+def test_pan_effective_base_url_uses_billed_api_in_production() -> None:
+    settings = build_settings(
+        env="production",
+        groq_api_key="gsk_test",
+        channel_credentials_encryption_key="key",
+        meta_app_secret="secret",
+        auth0_domain="acme.us.auth0.com",
+        auth0_audience="api://leadengine",
+        meta_webhook_verify_token="token",
+        auth0_mgmt_client_id="mgmt_client_id",
+        auth0_mgmt_client_secret="mgmt_client_secret",
+        pan_base_url="https://api.sandbox.co.in",
+    )
+    assert settings.pan_effective_base_url == "https://api.sandbox.co.in"
+
+
+def test_pan_test_credentials_default_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("PAN_TEST_API_KEY", "PAN_TEST_API_SECRET"):
+        monkeypatch.delenv(var, raising=False)
+    settings = build_settings()
+    assert settings.pan_test_api_key == ""
+    assert settings.pan_test_api_secret == ""
+
+
+def test_pan_effective_credentials_use_test_keys_in_dev() -> None:
+    """Non-prod envs hit the free test host, so the effective creds are the test pair."""
+    settings = build_settings(
+        env="development",
+        pan_api_key="key_live_x",
+        pan_api_secret="secret_live_x",
+        pan_test_api_key="key_test_x",
+        pan_test_api_secret="secret_test_x",
+    )
+    assert settings.pan_effective_api_key == "key_test_x"
+    assert settings.pan_effective_api_secret == "secret_test_x"
+
+
+def test_pan_effective_credentials_use_live_keys_in_production() -> None:
+    """Production hits the billed host, so the effective creds are the live pair."""
+    settings = build_settings(
+        env="production",
+        groq_api_key="gsk_test",
+        channel_credentials_encryption_key="key",
+        meta_app_secret="secret",
+        auth0_domain="acme.us.auth0.com",
+        auth0_audience="api://leadengine",
+        meta_webhook_verify_token="token",
+        auth0_mgmt_client_id="mgmt_client_id",
+        auth0_mgmt_client_secret="mgmt_client_secret",
+        pan_api_key="key_live_x",
+        pan_api_secret="secret_live_x",
+        pan_test_api_key="key_test_x",
+        pan_test_api_secret="secret_test_x",
+    )
+    assert settings.pan_effective_api_key == "key_live_x"
+    assert settings.pan_effective_api_secret == "secret_live_x"

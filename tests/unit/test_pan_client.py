@@ -114,6 +114,46 @@ async def test_verify_pan_live_non_200_raises_generic() -> None:
     assert str(exc_info.value) == _GENERIC_ERROR  # no provider detail leaked
 
 
+@respx.mock
+async def test_verify_pan_live_uses_test_credentials_in_dev(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In dev the client hits the free test host with the test creds, not the live ones."""
+    monkeypatch.setattr(
+        "clients.pan_client.get_settings",
+        lambda: build_settings(
+            env="development",
+            pan_use_mock=False,
+            pan_api_key="key_live_x",
+            pan_api_secret="secret_live_x",
+            pan_test_api_key="key_test_x",
+            pan_test_api_secret="secret_test_x",
+            pan_base_url="https://api.sandbox.co.in",
+            pan_test_base_url=_BASE,
+        ),
+    )
+    auth_route = respx.post(f"{_BASE}/authenticate").mock(
+        return_value=httpx.Response(200, json={"access_token": "jwt"})
+    )
+    respx.post(f"{_BASE}/kyc/pan/verify").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": {
+                    "category": "company",
+                    "status": "valid",
+                    "name_as_per_pan_match": True,
+                    "date_of_birth_match": True,
+                }
+            },
+        )
+    )
+    await verify_pan("AAACX1234C", "Gamoft", "01/04/2019")
+    sent = auth_route.calls.last.request
+    assert sent.headers["x-api-key"] == "key_test_x"
+    assert sent.headers["x-api-secret"] == "secret_test_x"
+
+
 @pytest.mark.usefixtures("_force_live")
 @respx.mock
 async def test_verify_pan_live_unexpected_body_raises_generic() -> None:

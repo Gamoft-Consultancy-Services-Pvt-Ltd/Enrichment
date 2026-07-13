@@ -57,8 +57,16 @@ async def verify_pan(pan: str, name: str, dob: str) -> PanCheck:
     settings = get_settings()
     if settings.pan_use_mock:
         return _mock_verify(pan)
+    # Billed production endpoint in prod/staging; free test endpoint in dev (see
+    # Settings.pan_effective_base_url) so development onboarding runs cost nothing.
+    # Credentials must match the host: live pair for prod, test pair for dev/test.
     return await _live_verify(
-        pan, name, dob, settings.pan_api_key, settings.pan_api_secret, settings.pan_base_url
+        pan,
+        name,
+        dob,
+        settings.pan_effective_api_key,
+        settings.pan_effective_api_secret,
+        settings.pan_effective_base_url,
     )
 
 
