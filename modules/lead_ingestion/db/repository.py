@@ -1,6 +1,7 @@
 """Async data access layer for lead_ingestion models."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -32,6 +33,24 @@ async def get_lead_by_email(session: AsyncSession, tenant_id: uuid.UUID, email: 
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_lead_by_id(session: AsyncSession, lead_id: uuid.UUID) -> Lead | None:
+    result = await session.execute(select(Lead).where(Lead.id == lead_id))
+    return result.scalar_one_or_none()
+
+
+async def set_lead_enrichment(
+    session: AsyncSession, lead_id: uuid.UUID, enrichment: dict[str, Any]
+) -> Lead | None:
+    """Write enrichment (+ enriched_at) onto a lead row; None if the lead is missing."""
+    lead = await get_lead_by_id(session, lead_id)
+    if lead is None:
+        return None
+    lead.enrichment = enrichment
+    lead.enriched_at = datetime.now(UTC)
+    await session.flush()
+    return lead
 
 
 async def get_lead_by_name_and_location(

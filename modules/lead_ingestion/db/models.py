@@ -74,6 +74,10 @@ class Lead(Base):
     raw_event_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     extra_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     pre_flight_block_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Enrichment output (EnrichmentResult), attached after the lead is scored-ready.
+    # NULL until enrichment runs. enriched_at records when it was last written.
+    enrichment: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
