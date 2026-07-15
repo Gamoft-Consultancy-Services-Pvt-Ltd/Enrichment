@@ -34,10 +34,13 @@ the registry.)
 `LeadReceived`, `LeadEnriched`, `LeadScored`). No publish/subscribe/bus yet
 (delivery lands with its first consumer, `orchestration`, per ADR 0001).
 
-**`clients/groq_client.py` (complete):** Thin async wrapper around the Groq SDK.
+**`clients/groq_client.py` (complete):** Thin async wrapper around an
+OpenAI-compatible LLM served by **OpenRouter** (model `deepseek/deepseek-v4-flash`). Despite
+the filename, it no longer uses Groq — OpenRouter speaks the OpenAI API protocol,
+so the `openai` SDK / `ChatOpenAI` are used as the client, pointed at OpenRouter.
 `call_with_tool(prompt, tool_name, tool_description, input_schema)` forces
-structured JSON output via Groq function calling (`llama-3.3-70b-versatile`,
-temperature=0). Only file in the project that imports `groq`.
+structured JSON output via function calling (`deepseek/deepseek-v4-flash`, temperature=0);
+`get_chat_model()` returns a `ChatOpenAI` for the LangGraph agents.
 
 **`clients/pan_client.py` (complete):** Thin async wrapper around Sandbox
 (Quicko) for PAN identity verification. Validates PAN format and checks name +
@@ -178,8 +181,8 @@ main.py → api/ and workers/ → modules/ and auth/ → shared/ → clients/ �
 
 FastAPI · uv (package manager) · PostgreSQL via SQLAlchemy 2.0 + Alembic
 (async `asyncpg`) · Redis + cachetools (in-process) · ARQ (Redis-backed async
-queue) · Groq (`llama-3.3-70b-versatile`, function calling, temperature=0) ·
-httpx · structlog · pytest.
+queue) · OpenRouter (`deepseek/deepseek-v4-flash`, OpenAI-compatible, function calling,
+temperature=0) · LangGraph + MCP (research agent) · httpx · structlog · pytest.
 
 ## Cross-cutting domain rules
 

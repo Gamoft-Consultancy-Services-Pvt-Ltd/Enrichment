@@ -477,7 +477,7 @@ Exported names:
 |---|---|
 | `DATABASE_URL` | PostgreSQL async connection string |
 | `REDIS_URL` | Redis connection string for ARQ jobs |
-| `GROQ_API_KEY` | Stage 2 LLM filter (`llama-3.3-70b-versatile`) |
+| `OPENROUTER_API_KEY` | Stage 2 LLM filter (`deepseek/deepseek-v4-flash` via OpenRouter) |
 | `META_APP_ID` | `1494580908551596` — Facebook / WhatsApp app |
 | `META_APP_SECRET` | Facebook app secret (from Meta Developer Portal) |
 | `META_WEBHOOK_VERIFY_TOKEN` | Shared verify token registered in Meta Webhooks panel |

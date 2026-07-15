@@ -1,6 +1,6 @@
 """Thin async wrapper around an OpenAI-compatible LLM served by OpenRouter.
 
-The project's LLM is **Qwen3-8B, served by OpenRouter**. OpenRouter speaks the
+The project's LLM is **DeepSeek V4 Flash, served by OpenRouter**. OpenRouter speaks the
 OpenAI API protocol, so the `openai` SDK and langchain's `ChatOpenAI` are used
 purely as the OpenAI-*compatible* client — pointed at OpenRouter's base URL with
 the OpenRouter API key. No OpenAI account or api.openai.com endpoint is involved.
@@ -25,7 +25,7 @@ from pydantic import SecretStr
 from core.config import get_settings
 from core.exceptions import ExternalServiceError
 
-_MODEL = "qwen/qwen3-8b"
+_MODEL = "deepseek/deepseek-v4-flash"
 
 _CLASSIFY_TOOL_NAME = "classify_message"
 _CLASSIFY_TOOL_DESCRIPTION = (
@@ -129,7 +129,7 @@ async def call_with_tool(
 
 
 def get_chat_model() -> ChatOpenAI:
-    """Return a ChatOpenAI pointed at OpenRouter for LangGraph agents (Qwen3-8B, temp 0)."""
+    """Return a ChatOpenAI pointed at OpenRouter for LangGraph agents (DeepSeek V4 Flash, temp 0)."""
     settings = get_settings()
     return ChatOpenAI(
         model=_MODEL,

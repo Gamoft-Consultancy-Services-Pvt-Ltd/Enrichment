@@ -100,7 +100,7 @@ async def test_call_with_tool_records_langfuse_generation() -> None:
     mock_ctx.update_current_observation.assert_called_once()
     kwargs = mock_ctx.update_current_observation.call_args.kwargs
     assert kwargs["name"] == "my_tool"
-    assert kwargs["model"] == "qwen/qwen3-8b"
+    assert kwargs["model"] == "deepseek/deepseek-v4-flash"
     assert kwargs["input"] == "test prompt"
     assert kwargs["output"] == expected
     assert kwargs["usage"] == {"input": 100, "output": 50}
@@ -119,5 +119,5 @@ def test_get_chat_model_configures_openrouter(monkeypatch: pytest.MonkeyPatch) -
         ),
     )
     model = llm_client.get_chat_model()
-    assert model.model_name == "qwen/qwen3-8b"
+    assert model.model_name == "deepseek/deepseek-v4-flash"
     assert model.temperature == 0.0
