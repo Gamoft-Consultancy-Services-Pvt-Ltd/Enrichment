@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
+from structlog.testing import capture_logs
 
 from modules.tenant_onboarding.pipeline import CompanyInfo, run_pipeline
 from shared.tenant.schemas import BusinessType, OnboardingStatus
@@ -67,6 +68,41 @@ async def test_pipeline_happy_path_sets_complete(monkeypatch: pytest.MonkeyPatch
     assert persona_run.call_args.kwargs["company_info"] == company_info.model_dump()
 
 
+async def test_pipeline_gives_research_a_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Onboarding must survive an unconvergeable company research run, so it hands
+    research a fallback CompanyInfo rather than letting a recursion-limit hit FAIL it."""
+    tenant_id = uuid4()
+    mock_session = AsyncMock()
+    _patch_common(monkeypatch, tenant_id)
+
+    from shared.tenant_config.schemas import Dimension, Signal, Thresholds, Weights
+
+    sigs = [Signal(id=f"{d.value.lower()}_1", dimension=d, question="?") for d in Dimension]
+    weights = Weights(fit=0.2, intent=0.2, engagement=0.2, behaviour=0.2, context=0.2)
+    thresholds = Thresholds(hot=80, warm=55)
+
+    research_mock = AsyncMock(return_value=CompanyInfo(summary="Acme makes CRM"))
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.research", research_mock)
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.persona.run",
+        AsyncMock(return_value={"industry": "SaaS"}),
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.icp.run", AsyncMock(return_value={"buyer": "VP"})
+    )
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.signals.run",
+        AsyncMock(return_value=(sigs, weights, thresholds)),
+    )
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.create_active", AsyncMock())
+    monkeypatch.setattr("modules.tenant_onboarding.pipeline.activate_tenant", AsyncMock())
+
+    await run_pipeline(mock_session, tenant_id)
+
+    fallback = research_mock.call_args.kwargs["fallback"]
+    assert isinstance(fallback, CompanyInfo)
+
+
 async def test_pipeline_sets_failed_on_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     tenant_id = uuid4()
     mock_session = AsyncMock()
@@ -83,3 +119,26 @@ async def test_pipeline_sets_failed_on_exception(monkeypatch: pytest.MonkeyPatch
     calls = [c.args[2] for c in set_status_mock.call_args_list]
     assert OnboardingStatus.RUNNING in calls
     assert OnboardingStatus.FAILED in calls
+
+
+async def test_pipeline_logs_the_exception_before_reraising(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A FAILED row must be traceable to a cause without the caller's terminal."""
+    tenant_id = uuid4()
+    mock_session = AsyncMock()
+    _patch_common(monkeypatch, tenant_id)
+
+    monkeypatch.setattr(
+        "modules.tenant_onboarding.pipeline.research",
+        AsyncMock(side_effect=Exception("mcp down")),
+    )
+
+    with capture_logs() as logs:
+        with pytest.raises(Exception, match="mcp down"):
+            await run_pipeline(mock_session, tenant_id)
+
+    errors = [e for e in logs if e["log_level"] == "error"]
+    assert errors, "the pipeline must log the failure it swallows into FAILED"
+    assert errors[0]["tenant_id"] == str(tenant_id)
+    assert "mcp down" in errors[0]["error"]

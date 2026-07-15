@@ -38,6 +38,11 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     max_tries = 2  # 1 retry on failure; dead-letters after 2nd failure
+    # ARQ defaults to 300s, which onboarding can legitimately exceed: a converging
+    # research run measured ~195s, and a non-converging one walks all 25 ReAct
+    # iterations before degrading to its fallback. A job killed at the default dies
+    # mid-pipeline, leaving the tenant stuck RUNNING with no FAILED row to explain it.
+    job_timeout = 900
     functions = [
         run_onboarding_pipeline,
         run_lead_capture_batch,

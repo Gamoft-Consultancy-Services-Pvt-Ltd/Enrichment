@@ -150,10 +150,15 @@ def test_settings_langfuse_overridable() -> None:
     assert settings.langfuse_host == "http://localhost:3000"
 
 
-def test_mcp_web_search_url_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mcp_web_search_url_default_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unset means unset: no plausible-but-wrong default that silently 404s.
+
+    The old default (http://localhost:8000/mcp) is the app's own port, so an
+    unconfigured run reached FastAPI instead of the MCP server and failed opaquely.
+    """
     monkeypatch.delenv("MCP_WEB_SEARCH_URL", raising=False)
     settings = build_settings()
-    assert settings.mcp_web_search_url == "http://localhost:8000/mcp"
+    assert settings.mcp_web_search_url == ""
 
 
 def test_mcp_web_search_url_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:

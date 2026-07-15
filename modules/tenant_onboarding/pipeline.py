@@ -3,6 +3,7 @@
 from typing import Any
 from uuid import UUID
 
+import structlog
 from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,8 @@ from shared.tenant.schemas import OnboardingStatus
 from shared.tenant.service import activate_tenant, get_tenant, set_onboarding_status
 from shared.tenant_config.schemas import TenantConfigCreate
 from shared.tenant_config.service import create_active
+
+log = structlog.get_logger(__name__)
 
 
 class CompanyInfo(BaseModel):
@@ -46,9 +49,12 @@ async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
     try:
         tenant = await get_tenant(session, tenant_id)
 
+        # Onboarding is fully automated: a hard-to-research company must not fail it.
+        # An empty CompanyInfo lets the downstream agents proceed on sparse input.
         company_info = await research(
             goal=_company_goal(str(tenant.website_url), tenant.company_name),
             output_schema=CompanyInfo,
+            fallback=CompanyInfo(),
         )
 
         business_profile: dict[str, Any] = await persona.run(
@@ -70,6 +76,13 @@ async def run_pipeline(session: AsyncSession, tenant_id: UUID) -> None:
         await activate_tenant(session, tenant_id)
         await set_onboarding_status(session, tenant_id, OnboardingStatus.COMPLETE)
 
-    except Exception:
+    except Exception as exc:
+        # Log before re-raising: the FAILED row is the only lasting trace of this run
+        # when the caller is a one-off script whose terminal is gone.
+        log.exception(
+            "onboarding pipeline failed",
+            tenant_id=str(tenant_id),
+            error=str(exc),
+        )
         await set_onboarding_status(session, tenant_id, OnboardingStatus.FAILED)
         raise

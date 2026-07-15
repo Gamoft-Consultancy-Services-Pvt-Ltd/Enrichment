@@ -47,3 +47,9 @@ class UnprocessableError(AppError):
     """The request is well-formed but cannot be processed (e.g. PAN not verified)."""
 
     status_code = 422
+
+
+class ConfigurationError(AppError):
+    """A required setting is missing or unusable — our deployment is wrong, not theirs."""
+
+    status_code = 500

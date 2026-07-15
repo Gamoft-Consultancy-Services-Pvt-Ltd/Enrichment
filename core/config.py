@@ -34,9 +34,12 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     groq_api_key: str = ""
     serper_api_key: str = ""
-    mcp_web_search_url: str = "http://localhost:8000/mcp"
+    # No default: the MCP server has no fixed local address, and a plausible guess
+    # (localhost:8000) is this app's own port, which answers 404 rather than failing.
+    # shared/research raises ConfigurationError when this is unset.
+    mcp_web_search_url: str = ""
 
-    # OpenRouter serves the project's LLM (Qwen3-8B). OpenRouter speaks the OpenAI
+    # OpenRouter serves the project's LLM (DeepSeek V4 Flash). OpenRouter speaks the OpenAI
     # API protocol, so it is called with the OpenAI-compatible client pointed here.
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

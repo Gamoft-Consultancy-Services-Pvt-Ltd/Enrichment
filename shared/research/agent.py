@@ -10,19 +10,20 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.errors import GraphRecursionError
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
 from clients.llm_client import get_chat_model
 from core.config import get_settings
-from core.exceptions import ExternalServiceError
+from core.exceptions import ConfigurationError, ExternalServiceError
 
 if TYPE_CHECKING:
     from langfuse.callback import CallbackHandler
 
 log = structlog.get_logger(__name__)
 
-_RECURSION_LIMIT = 12
+_RECURSION_LIMIT = 25
 
 # Groq's llama models intermittently emit a malformed tool call that Groq rejects with
 # a 400 `tool_use_failed`; the identical request usually succeeds on a retry. Retry the
@@ -64,16 +65,34 @@ def _langfuse_handler() -> "CallbackHandler | None":
         return None
 
 
-async def research[T: BaseModel](*, goal: str, output_schema: type[T]) -> T:
+async def research[T: BaseModel](
+    *, goal: str, output_schema: type[T], fallback: T | None = None
+) -> T:
     """Run the web-research agent toward `goal` and return `output_schema` filled in.
 
-    Raises ExternalServiceError if the MCP server is unreachable or the agent fails.
+    If `fallback` is given, a non-converging run (the ReAct loop exhausting the
+    recursion limit — common for sparse-data targets) returns `fallback` instead
+    of failing, so an automated caller like onboarding is not hard-failed by a
+    hard-to-research company. Without a fallback, that case still raises.
+
+    Raises ConfigurationError if MCP_WEB_SEARCH_URL is unset, and ExternalServiceError
+    if the MCP server is unreachable or the agent fails.
     """
+    mcp_url = get_settings().mcp_web_search_url
+    # Checked outside the try: an unset URL is our misconfiguration, and wrapping it as
+    # ExternalServiceError would blame the upstream and read as a transient outage.
+    if not mcp_url:
+        raise ConfigurationError(
+            "MCP_WEB_SEARCH_URL is not set, so the research agent has no web_search "
+            "tool to call. Set it to the MCP server's URL "
+            "(http://mcp-web-search:8000/mcp inside docker-compose)."
+        )
+
     try:
         client = MultiServerMCPClient(
             {
                 "web_search": {
-                    "url": get_settings().mcp_web_search_url,
+                    "url": mcp_url,
                     "transport": "streamable_http",
                 }
             }
@@ -97,6 +116,14 @@ async def research[T: BaseModel](*, goal: str, output_schema: type[T]) -> T:
                         max_attempts=_MAX_TOOL_RETRIES + 1,
                     )
                     continue
+                # A recursion-limit exhaustion means the loop could not converge;
+                # retrying cannot help. Degrade to the caller's fallback if given.
+                if isinstance(exc, GraphRecursionError) and fallback is not None:
+                    log.warning(
+                        "research agent hit the recursion limit; returning fallback",
+                        recursion_limit=_RECURSION_LIMIT,
+                    )
+                    return fallback
                 raise
         raise AssertionError("unreachable: loop returns or raises")  # pragma: no cover
     except Exception as exc:
