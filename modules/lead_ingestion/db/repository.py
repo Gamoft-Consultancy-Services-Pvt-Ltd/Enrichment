@@ -53,6 +53,26 @@ async def set_lead_enrichment(
     return lead
 
 
+async def set_lead_score(
+    session: AsyncSession,
+    lead_id: uuid.UUID,
+    *,
+    bucket: str | None,
+    score: float | None,
+    trace: dict[str, Any],
+) -> Lead | None:
+    """Write bucket/score/trace (+ scored_at) onto a lead row; None if missing."""
+    lead = await get_lead_by_id(session, lead_id)
+    if lead is None:
+        return None
+    lead.lead_bucket = bucket
+    lead.lead_score = score
+    lead.scoring = trace
+    lead.scored_at = datetime.now(UTC)
+    await session.flush()
+    return lead
+
+
 async def get_lead_by_name_and_location(
     session: AsyncSession, tenant_id: uuid.UUID, full_name: str, location: str
 ) -> Lead | None:

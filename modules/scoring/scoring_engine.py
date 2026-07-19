@@ -12,7 +12,7 @@ Rules:
   dimension enrichment could not reach.
 """
 
-from modules.scoring.schemas import (
+from modules.scoring.scoring_schemas import (
     CONFIDENCE_FLOOR,
     DimensionScore,
     ScoringResult,

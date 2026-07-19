@@ -11,7 +11,7 @@ from typing import Any
 
 from clients.llm_client import call_with_tool
 from modules.lead_ingestion.db.models import Lead
-from modules.scoring.schemas import SignalJudgment, Verdict
+from modules.scoring.scoring_schemas import SignalJudgment, Verdict
 from shared.events.schemas import EnrichmentResult
 from shared.tenant_config.schemas import TenantConfigRead
 

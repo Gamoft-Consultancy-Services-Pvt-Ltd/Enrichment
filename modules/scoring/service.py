@@ -7,7 +7,7 @@ the outcome. Callers import from here and nothing else in this module.
 
 from modules.lead_ingestion.db.models import Lead
 from modules.scoring.judge import judge_signals
-from modules.scoring.schemas import ScoringResult
+from modules.scoring.scoring_schemas import ScoringResult
 from modules.scoring.scoring_engine import compute_score
 from shared.events.schemas import EnrichmentResult
 from shared.tenant_config.schemas import TenantConfigRead
