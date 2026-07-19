@@ -65,11 +65,30 @@ links the user, and immediately enqueues `run_onboarding_pipeline` via the ARQ
 pool. The tenant polls `GET /me` for `onboarding_status` to track progress.
 
 **Migrations applied:** `tenants` table (initial), `tenant_configs` table,
-`simplify_config_status` (ACTIVE/ARCHIVED only), `add_website_url_onboarding_status_to_tenants`.
+`simplify_config_status` (ACTIVE/ARCHIVED only), `add_website_url_onboarding_status_to_tenants`,
+`add_enrichment_columns_to_leads`, `add_scoring_columns_to_leads` (head:
+`d1e2f3a4b5c6`).
 
-**Still empty stubs:** `core/cache.py`, `shared/audit/`, all other `modules/`
-(`lead_ingestion`, `orchestration`, `enrichment`, `scoring`, `reporting`,
-`notification`), most of `clients/`. **Next up: `modules/lead_ingestion`.**
+**`modules/scoring` (demo-complete):** `scoring_schemas.py`, `scoring_engine.py`
+(pure deterministic math), `judge.py` (one LLM call per lead returning a
+per-signal SATISFIED/NOT_SATISFIED/UNKNOWN verdict), `service.py`
+(`run_scoring`). Called by `modules/orchestration.process_lead` after
+enrichment; the result is persisted to
+`leads.lead_bucket/lead_score/scoring/scored_at` via
+`lead_ingestion.store_lead_score`. UNKNOWN signals are excluded from the
+denominator and a fully-unknown dimension is dropped with the remaining weights
+renormalized. **No tests yet — deferred for the demo.**
+
+The older Epic 6 files in this folder (`agent.py`, `engine.py`, `demo.py`,
+`evaluator.py`, `lead_mapper.py`, `rating_client.py`, `signal_set_adapter.py`,
+`db/`, `services/`, `worker/`, `routes_api/`, `schemas/`, `tests/`) are
+unintegrated dead code pending deletion — they use flat imports, duplicate
+`shared/tenant_config`, and expect input contracts that do not exist. Do not
+import them. The `scoring_`-prefixed filenames above exist to avoid being
+shadowed by the `schemas/` package and the `engine.py` module.
+
+**Still empty stubs:** `core/cache.py`, `shared/audit/`, `modules/reporting`,
+`modules/notification`, most of `clients/`.
 
 When adding the first real code to a module, you are establishing its public
 surface — follow the boundary rules below from the start.
