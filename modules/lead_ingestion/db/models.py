@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy import (
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -78,6 +79,13 @@ class Lead(Base):
     # NULL until enrichment runs. enriched_at records when it was last written.
     enrichment: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Scoring output, attached after enrichment. NULL until scoring runs, and
+    # bucket/score stay NULL when no signal could be judged (trace still written).
+    # lead_bucket is String, not a PG ENUM — same reasoning as pipeline_stage.
+    lead_bucket: Mapped[str | None] = mapped_column(String, nullable=True)
+    lead_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    scoring: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
